@@ -1,39 +1,43 @@
 import numpy as np
 from scipy.optimize import minimize
 from scipy.stats import chi2
+from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
 plt.rcParams["text.usetex"] = True
 plt.rcParams["font.family"] = "serif"
 plt.rcParams["font.serif"] = "Times New Roman"
 
 class wtheta_model:
-    def __init__(self, alpha_min, alpha_max, n_broadband, wtheta_th_interp):
+    def __init__(self, alpha_min, alpha_max, galaxy_bias, n_broadband, bins_removed, path_template):
         """
         Initialize the wtheta_model class with necessary parameters and settings.
 
         Args:
             alpha_min (float): Minimum allowed alpha value.
             alpha_max (float): Maximum allowed alpha value.
+            galaxy_bias (dict): Linear galaxy bias for each redshift bin.
             n_broadband (int): The number of broadband bins.
-            wtheta_th_interp (dict): Interpolation functions for wtheta.
+            bins_removed (list): List of bins removed for the fitting.
+            path_template (str): Path where theoretical wtheta files are located.
         """
         self.alpha_min = alpha_min
         self.alpha_max = alpha_max
+        self.galaxy_bias = galaxy_bias
         self.n_broadband = n_broadband
-        self.wtheta_th_interp = wtheta_th_interp
-        
-        # Set nbins based on the length of wtheta_th_interp
-        self.nbins = len(self.wtheta_th_interp)
+        self.bins_removed = bins_removed
+        self.path_template = path_template
+
+        # Set nbins based on the number of bins (e.g., from the template data)
+        self.nbins = len(galaxy_bias)  # You may want to adjust this based on your specific needs
 
         # Predefined values based on the given context
         self.names_params = np.array([
-            'alpha',
-            'A_0', 'B_0', 'C_0', 'D_0', 'E_0', 'F_0', 'G_0',
-            'A_1', 'B_1', 'C_1', 'D_1', 'E_1', 'F_1', 'G_1',
-            'A_2', 'B_2', 'C_2', 'D_2', 'E_2', 'F_2', 'G_2',
-            'A_3', 'B_3', 'C_3', 'D_3', 'E_3', 'F_3', 'G_3',
-            'A_4', 'B_4', 'C_4', 'D_4', 'E_4', 'F_4', 'G_4',
-            'A_5', 'B_5', 'C_5', 'D_5', 'E_5', 'F_5', 'G_5',
+            'alpha', 'A_0', 'B_0', 'C_0', 'D_0', 'E_0', 'F_0', 'G_0', 
+            'A_1', 'B_1', 'C_1', 'D_1', 'E_1', 'F_1', 'G_1', 
+            'A_2', 'B_2', 'C_2', 'D_2', 'E_2', 'F_2', 'G_2', 
+            'A_3', 'B_3', 'C_3', 'D_3', 'E_3', 'F_3', 'G_3', 
+            'A_4', 'B_4', 'C_4', 'D_4', 'E_4', 'F_4', 'G_4', 
+            'A_5', 'B_5', 'C_5', 'D_5', 'E_5', 'F_5', 'G_5'
         ])
         self.n_broadband_max = int((len(self.names_params) - 1) / 6 - 1)  # This should be 6 (from B to G)
         self.n_params_max = len(self.names_params)
@@ -51,6 +55,9 @@ class wtheta_model:
         # Apply the reduction based on indices_params to names_params, p0, and bounds
         self._apply_reduction()
 
+        # Interpolation of the theoretical wtheta
+        self.wtheta_th_interp = self._load_and_interpolate_wtheta()
+        
     def _initialize_p0(self):
         """Initialize the p0 parameter list based on the redshift bins."""
         p0_list = [1]
@@ -68,8 +75,8 @@ class wtheta_model:
 
     def _generate_indices(self):
         """Generate index array based on the number of broadband bins."""
-        indices_params_bb = np.arange(1, 1 + (self.n_broadband + 1)) # only nuisance parameters
-        indices_params = np.concatenate([[0], indices_params_bb]) # including alpha
+        indices_params_bb = np.arange(1, 1 + (self.n_broadband + 1))  # Only nuisance parameters
+        indices_params = np.concatenate([[0], indices_params_bb])  # Including alpha
         for k in range(1, self.nbins):
             indices_params = np.concatenate([indices_params, indices_params_bb + k * (1 + self.n_broadband_max)])
         return indices_params
@@ -82,6 +89,28 @@ class wtheta_model:
             list(np.array(self.bounds[0])[self.indices_params]),
             list(np.array(self.bounds[1])[self.indices_params])
         )
+
+    def _load_and_interpolate_wtheta(self):
+        """Load and interpolate the wtheta theoretical data."""
+        wtheta_th_interp = {}
+        for bin_z in range(self.nbins):
+            # Load the theoretical wtheta for each bin
+            wtheta_bb = np.loadtxt(f'{self.path_template}/wtheta_bb_bin{bin_z}.txt')[:, 1]
+            wtheta_bf = np.loadtxt(f'{self.path_template}/wtheta_bf_bin{bin_z}.txt')[:, 1]
+            wtheta_ff = np.loadtxt(f'{self.path_template}/wtheta_ff_bin{bin_z}.txt')[:, 1]
+
+            # Combine these into the final wtheta model for the bin
+            wtheta_combined = (
+                self.galaxy_bias[bin_z]**2 * wtheta_bb + 
+                self.galaxy_bias[bin_z] * wtheta_bf + 
+                wtheta_ff
+            )
+            
+            # Interpolate the combined wtheta
+            theta_values = np.loadtxt(f'{self.path_template}/wtheta_bb_bin{bin_z}.txt')[:, 0]
+            wtheta_th_interp[bin_z] = interp1d(theta_values, wtheta_combined, kind='cubic')
+
+        return wtheta_th_interp
 
     def wtheta_template_raw(self, theta, alpha, *params):
         """Theoretical template calculation."""
@@ -107,7 +136,7 @@ class wtheta_model:
         return wtheta_template
 
 class bao_fit:
-    def __init__(self, wtheta_model_instance, theta_data, wtheta_data, cov, path):
+    def __init__(self, wtheta_model_instance, theta_data, wtheta_data, cov, path_baofit):
         """
         Initialize the BAO fit class.
         """
@@ -117,7 +146,7 @@ class bao_fit:
         self.wtheta_data = wtheta_data
         self.cov = cov
         self.inv_cov = np.linalg.inv(cov)  # Compute the inverse covariance matrix
-        self.path = path
+        self.path_baofit = path_baofit
         self.n_broadband = wtheta_model_instance.n_broadband
         self.nbins = wtheta_model_instance.nbins
         
@@ -132,7 +161,7 @@ class bao_fit:
         # Precompute positions of amplitude and broadband parameters
         self.pos_amplitude = np.array([1 + i * (self.n_broadband + 1) for i in np.arange(0, self.nbins)])
         self.pos_broadband = np.delete(np.arange(0, self.n_params), np.concatenate(([0], self.pos_amplitude)))
-
+        
         # Construct the design matrix
         self.design_matrix = np.zeros([len(self.wtheta_data_concatenated), self.nbins * self.n_broadband])
         self._construct_design_matrix()
@@ -190,7 +219,7 @@ class bao_fit:
         chi2_best = chi2_vector[best]
         
         # Save the likelihood data
-        np.savetxt(self.path + '/likelihood_data.txt', np.column_stack([alpha_vector, chi2_vector]))
+        np.savetxt(self.path_baofit + '/likelihood_data.txt', np.column_stack([alpha_vector, chi2_vector]))
         
         # Check the chi2 values at the extremes of alpha range
         if chi2_vector[0] > chi2_best + 1 and chi2_vector[-1] > chi2_best + 1:
@@ -281,12 +310,12 @@ class bao_fit:
                 if bin_z == self.nbins - 1:
                     ax.set_xlabel(r'$\theta$ (deg)', fontsize=13)
             plt.tight_layout()
-            plt.savefig(self.path + '/wtheta_data_bestfit.png', bbox_inches='tight')
+            plt.savefig(self.path_baofit + '/wtheta_data_bestfit.png', bbox_inches='tight')
             plt.close(fig)
             
             # Save the w(theta)
             np.savetxt(
-                self.path + '/wtheta_data_bestfit.txt',
+                self.path_baofit + '/wtheta_data_bestfit.txt',
                 np.column_stack([
                     np.concatenate([self.theta_data] * self.nbins),
                     self.wtheta_data_concatenated,
@@ -304,7 +333,7 @@ class bao_fit:
             plt.plot((alpha_best + (alpha_up - alpha_best)) * np.ones(n), np.linspace(chi2_vector.min(), chi2_vector.max(), n), '--k')
             plt.xlabel(r'$\alpha$', fontsize=14)
             plt.ylabel(r'$\chi^2$', fontsize=14)
-            plt.savefig(self.path + '/chi2_profile.png', bbox_inches='tight')
+            plt.savefig(self.path_baofit + '/chi2_profile.png', bbox_inches='tight')
             plt.close(fig)
                 
         else:
@@ -319,7 +348,7 @@ class bao_fit:
             plt.plot(alpha_vector, np.ones(n) * (chi2_best + 1), '--r')
             plt.xlabel(r'$\alpha$', fontsize=14)
             plt.ylabel(r'$\chi^2$', fontsize=14)
-            plt.savefig(self.path + '/chi2_profile_bad.png', bbox_inches='tight')
+            plt.savefig(self.path_baofit + '/chi2_profile_bad.png', bbox_inches='tight')
             plt.close(fig)
         
         # Calculate degrees of freedom (dof)
@@ -329,7 +358,7 @@ class bao_fit:
         
         # Save the results
         results = np.array([[alpha_best, err_alpha, chi2_best, dof]])
-        np.savetxt(self.path + '/fit_results.txt', results, fmt=['%.4f', '%.4f', '%.4f', '%d'])
+        np.savetxt(self.path_baofit + '/fit_results.txt', results, fmt=['%.4f', '%.4f', '%.4f', '%d'])
 
         # Print them to the console as well
         print(f'Best-fit alpha = {alpha_best:.4f} ± {err_alpha:.4f}')

@@ -66,14 +66,13 @@ class redshift_distributions:
                 4: [1.0, 1.1],
                 5: [1.1, 1.2]
             }
-        elif nz_flag == 'fid_5':
-            self.nz_data = np.loadtxt('nz/nz_DNFpdf_shift_stretch_wrtclusteringz1-4_wrtVIPERS5-6_v2_5.txt')
+        elif nz_flag == 'clusteringz':
+            self.nz_data = np.loadtxt('nz/nz_clusteringz.txt')
             self.z_edges = {
                 0: [0.6, 0.7],
                 1: [0.7, 0.8],
                 2: [0.8, 0.9],
-                3: [0.9, 1.0],
-                4: [1.0, 1.1]
+                3: [0.9, 1.0]
             }
         else:
             raise ValueError(f"Unknown redshift distributions: {nz_flag}")

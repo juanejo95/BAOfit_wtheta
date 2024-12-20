@@ -5,10 +5,10 @@ import multiprocessing
 from functools import partial
 
 class PowerSpectrumMultipoles:
-    def __init__(self, cosmo, include_wiggles, nz_instance, Nk, Nmu, path):
+    def __init__(self, cosmo, include_wiggles, nz_instance, Nk, Nmu, path_template):
         self.cosmo = cosmo
         self.Nmu = Nmu
-        self.path = path
+        self.path_template = path_template
         self.include_wiggles = include_wiggles
         self.nz_instance = nz_instance
 
@@ -23,7 +23,7 @@ class PowerSpectrumMultipoles:
         self.Pk_nowigg = pknow(self.kh) / cosmo.h**3
 
         self.k = self.kh * cosmo.h  # Precompute k in units of h
-        np.savetxt(f'{path}/Pk_full.txt', np.column_stack([self.k, self.Pk_wigg, self.Pk_nowigg]))
+        np.savetxt(f'{path_template}/Pk_full.txt', np.column_stack([self.k, self.Pk_wigg, self.Pk_nowigg]))
         
         self.Sigma_0, self.delta_Sigma_0 = self.compute_sigma_parameters()
 
@@ -31,6 +31,9 @@ class PowerSpectrumMultipoles:
         self.ells = [0, 2, 4]
         self.mu_vector = np.linspace(-1, 1, Nmu)
         self.legendre = {ell: scipy.special.eval_legendre(ell, self.mu_vector) for ell in self.ells}
+        
+        # Different bias components (squared, linear and independent)
+        self.components = ['bb', 'bf', 'ff']
         
     def compute_sigma_parameters(self):
         """Compute Sigma_0 and delta_Sigma_0 using the given cosmology."""
@@ -74,12 +77,9 @@ class PowerSpectrumMultipoles:
         
         pk_dict = {}
         for ell in self.ells:
-            leg = self.legendre[ell]
-            coeff = (2 * ell + 1) / 2
-
-            pk_dict[f'Pk_{ell}_bb'] = coeff * np.trapz(pk_term * leg, self.mu_vector)
-            pk_dict[f'Pk_{ell}_bf'] = coeff * np.trapz(2 * self.mu_vector**2 * f * pk_term * leg, self.mu_vector)
-            pk_dict[f'Pk_{ell}_ff'] = coeff * np.trapz(self.mu_vector**4 * f**2 * pk_term * leg, self.mu_vector)
+            pk_dict[f'Pk_{ell}_bb'] = (2 * ell + 1) / 2 * np.trapz(pk_term * self.legendre[ell], self.mu_vector)
+            pk_dict[f'Pk_{ell}_bf'] = (2 * ell + 1) / 2 * np.trapz(2 * self.mu_vector**2 * f * pk_term * self.legendre[ell], self.mu_vector)
+            pk_dict[f'Pk_{ell}_ff'] = (2 * ell + 1) / 2 * np.trapz(self.mu_vector**4 * f**2 * pk_term * self.legendre[ell], self.mu_vector)
 
         return pk_dict
 
@@ -91,11 +91,7 @@ class PowerSpectrumMultipoles:
 
         print(f"{bin_z} - Computing Pk_ell...")
 
-        pk_ell_dict = {key: np.zeros(len(self.k)) for key in [
-            'Pk_0_bb', 'Pk_2_bb', 'Pk_4_bb',
-            'Pk_0_bf', 'Pk_2_bf', 'Pk_4_bf',
-            'Pk_0_ff', 'Pk_2_ff', 'Pk_4_ff'
-        ]}
+        pk_ell_dict = {f'Pk_{ell}_{component}': np.zeros(len(self.k)) for ell in self.ells for component in self.components}
 
         for i in range(len(self.k)):
             pk_dict = self.compute_pk_multipoles(i, bin_z, Sigma_tot_vector)
@@ -103,17 +99,10 @@ class PowerSpectrumMultipoles:
                 pk_ell_dict[key][i] = value
 
         # Save pk_ell_dict
-        components = ['bb', 'bf', 'ff']
-        for comp in components:
-            np.savetxt(
-                f"{self.path}/Pk_ell_{comp}_bin{bin_z}.txt",
-                np.column_stack([
-                    self.k,
-                    pk_ell_dict[f'Pk_0_{comp}'],
-                    pk_ell_dict[f'Pk_2_{comp}'],
-                    pk_ell_dict[f'Pk_4_{comp}']
-                ])
-            )
+        for component in self.components:
+            data = np.column_stack([self.k] + [pk_ell_dict[f'Pk_{ell}_{component}'] for ell in self.ells])
+            np.savetxt(f"{self.path_template}/Pk_ell_{component}_bin{bin_z}.txt", data)
+
         print(f"{bin_z} - Pk_ell computed!")
         return pk_ell_dict
 
@@ -126,7 +115,7 @@ class CorrelationFunctionMultipoles:
         - power_spectrum_multipoles: Instance of PowerSpectrumMultipoles class.
         - Nr: The number of radial bins.
         """
-        self.path = power_spectrum_multipoles.path
+        self.path_template = power_spectrum_multipoles.path_template
         self.Nr = Nr
         self.k = power_spectrum_multipoles.k  # Get the k array from PowerSpectrumMultipoles instance
 
@@ -138,6 +127,7 @@ class CorrelationFunctionMultipoles:
         self.mu_vector = power_spectrum_multipoles.mu_vector
         self.legendre = power_spectrum_multipoles.legendre
         self.ells = power_spectrum_multipoles.ells
+        self.components = power_spectrum_multipoles.components
 
     def load_pk_ell_data(self, bin_z):
         """
@@ -150,12 +140,11 @@ class CorrelationFunctionMultipoles:
         - pk_ell_dict: Dictionary containing precomputed Pk_ell data for different multipoles.
         """
         print(f"{bin_z} - Loading precomputed Pk_ell data...")
-        components = ['bb', 'bf', 'ff']
 
         pk_ell_dict = {
-            f'Pk_{ell}_{comp}': np.loadtxt(f"{self.path}/Pk_ell_{comp}_bin{bin_z}.txt")[:, ell_idx + 1]
-            for comp in components
-            for ell_idx, ell in enumerate(self.ells)
+            f'Pk_{ell}_{component}': np.loadtxt(f"{self.path_template}/Pk_ell_{component}_bin{bin_z}.txt")[:, idx + 1]
+            for component in self.components
+            for idx, ell in enumerate(self.ells)
         }
         return pk_ell_dict
 
@@ -181,10 +170,10 @@ class CorrelationFunctionMultipoles:
 
         xi_dict = {}
         for ell, j_ell_x in zip(self.ells, [j_0_x, j_2_x, j_4_x]):
-            xi_dict[f'xi_{ell}_bb'] = np.trapz(j_ell_x * self.k**2 / (2 * np.pi**2) * pk_ell_dict[f'Pk_{ell}_bb'], self.k)
-            xi_dict[f'xi_{ell}_bf'] = np.trapz(j_ell_x * self.k**2 / (2 * np.pi**2) * pk_ell_dict[f'Pk_{ell}_bf'], self.k)
-            xi_dict[f'xi_{ell}_ff'] = np.trapz(j_ell_x * self.k**2 / (2 * np.pi**2) * pk_ell_dict[f'Pk_{ell}_ff'], self.k)
-
+            for component in self.components:
+                xi_dict[f'xi_{ell}_{component}'] = np.trapz(
+                    j_ell_x * self.k**2 / (2 * np.pi**2) * pk_ell_dict[f'Pk_{ell}_{component}'], self.k
+                )
         return xi_dict
 
     def compute_xi_ell(self, bin_z):
@@ -202,12 +191,7 @@ class CorrelationFunctionMultipoles:
         # Load the precomputed Pk_ell data
         pk_ell_dict = self.load_pk_ell_data(bin_z)
 
-        xi_ell_dict = {key: np.zeros(self.Nr) for key in [
-            'xi_0_bb', 'xi_2_bb', 'xi_4_bb',
-            'xi_0_bf', 'xi_2_bf', 'xi_4_bf',
-            'xi_0_ff', 'xi_2_ff', 'xi_4_ff'
-        ]}
-
+        xi_ell_dict = {f'xi_{ell}_{component}': np.zeros(self.Nr) for component in self.components for ell in self.ells}
         for i, r_12 in enumerate(self.r_12_vector):
             xi_dict = self.compute_xi_multipoles(r_12, pk_ell_dict)
             for key, value in xi_dict.items():
@@ -217,44 +201,36 @@ class CorrelationFunctionMultipoles:
                 print(f"{bin_z} - {int((i + 1) / self.Nr * 100)}%")
 
         # Save xi_ell_dict
-        components = ['bb', 'bf', 'ff']
-
-        for comp in components:
+        for component in self.components:
             np.savetxt(
-                f"{self.path}/xi_ell_{comp}_bin{bin_z}.txt",
-                np.column_stack([
-                    self.r_12_vector,
-                    xi_ell_dict[f'xi_0_{comp}'],
-                    xi_ell_dict[f'xi_2_{comp}'],
-                    xi_ell_dict[f'xi_4_{comp}']
-                ])
+                f"{self.path_template}/xi_ell_{component}_bin{bin_z}.txt",
+                np.column_stack([self.r_12_vector] + [xi_ell_dict[f'xi_{ell}_{component}'] for ell in self.ells])
             )
 
         print(f"{bin_z} - xi_ell computed!")
         return xi_ell_dict
 
 class WThetaCalculator:
-    def __init__(self, correlation_function_multipoles, Nz, theta=None, n_cpu=None):
+    def __init__(self, correlation_function_multipoles, Nz, Ntheta, n_cpu=None):
         """
         Initialize the WThetaCalculator class.
 
         Parameters:
         - correlation_function_multipoles: Instance of the class containing correlation function multipoles (xi_ell).
-        - Nz: Number of redshift bins.
-        - theta: Array of theta values (angular separations in radians). Default: log-spaced between 0.001° and 179.5°.
+        - Nz: Number of redshift bins for the double redshift integral.
+        - Ntheta: Number of theta bins.
         - n_cpu: Number of CPU cores to use for multiprocessing. Default: all available cores.
         """
         self.nz_instance = correlation_function_multipoles.nz_instance
         self.cosmo = correlation_function_multipoles.cosmo
-        self.path = correlation_function_multipoles.path
+        self.path_template = correlation_function_multipoles.path_template
         self.r_12_vector = correlation_function_multipoles.r_12_vector
         self.mu_vector = correlation_function_multipoles.mu_vector
         self.legendre = correlation_function_multipoles.legendre
         self.ells = correlation_function_multipoles.ells
         self.Nz = Nz
-
-        # Define default theta if not provided
-        self.theta = theta if theta is not None else 10**np.linspace(np.log10(0.001), np.log10(179.5), 10**2) * np.pi / 180
+        self.components = correlation_function_multipoles.components
+        self.theta = 10**np.linspace(np.log10(0.001), np.log10(179.5), Ntheta) * np.pi / 180
 
         # Define default n_cpu if not provided
         self.n_cpu = n_cpu if n_cpu is not None else multiprocessing.cpu_count()
@@ -269,11 +245,9 @@ class WThetaCalculator:
         Returns:
         - xi_ell_dict: Dictionary containing the xi_ell data for different multipoles.
         """
-        components = ['bb', 'bf', 'ff']
-
         xi_ell_dict = {
-            f'xi_{ell}_{comp}': np.loadtxt(f"{self.path}/xi_ell_{comp}_bin{bin_z}.txt")[:, ell_idx + 1]
-            for comp in components
+            f'xi_{ell}_{component}': np.loadtxt(f"{self.path_template}/xi_ell_{component}_bin{bin_z}.txt")[:, ell_idx + 1]
+            for component in self.components
             for ell_idx, ell in enumerate(self.ells)
         }
         return xi_ell_dict
@@ -296,42 +270,55 @@ class WThetaCalculator:
         
         xi_ell_dict = self.load_xi_ell_data(bin_z)
 
-        integrand = {key: np.zeros((len(z_values), len(z_values))) for key in [
-            'integrand_bb', 'integrand_bf', 'integrand_ff'
-        ]}
+        integrand = {f'integrand_{component}': np.zeros((len(z_values), len(z_values))) for component in self.components}
         
-        for i in range(len(z_values)):
-            for j in range(len(z_values)):
-                if j < i:
-                    for key in integrand.keys():
-                        integrand[key][i, j] = integrand[key][j, i]
-                else:
-                    r_12 = np.sqrt(r_values[i]**2 + r_values[j]**2 - 2 * r_values[i] * r_values[j] * np.cos(theta))
-                    mu = (r_values[j] - r_values[i]) / r_12
+#         for i in range(len(z_values)):
+#             for j in range(len(z_values)):
+#                 if j < i:
+#                     for key in integrand.keys():
+#                         integrand[key][i, j] = integrand[key][j, i]
+#                 else:
+#                     r_12 = np.sqrt(r_values[i]**2 + r_values[j]**2 - 2 * r_values[i] * r_values[j] * np.cos(theta))
+#                     mu = (r_values[j] - r_values[i]) / r_12
 
-                    try:
-                        integrand['integrand_bb'][i, j] = phi_values[i] * phi_values[j] * sum([
-                            np.interp(r_12, self.r_12_vector, xi_ell_dict['xi_0_bb']) * np.interp(mu, self.mu_vector, self.legendre[0]),
-                            np.interp(r_12, self.r_12_vector, xi_ell_dict['xi_2_bb']) * np.interp(mu, self.mu_vector, self.legendre[2]),
-                            np.interp(r_12, self.r_12_vector, xi_ell_dict['xi_4_bb']) * np.interp(mu, self.mu_vector, self.legendre[4])
-                        ])
-                        integrand['integrand_bf'][i, j] = phi_values[i] * phi_values[j] * sum([
-                            np.interp(r_12, self.r_12_vector, xi_ell_dict['xi_0_bf']) * np.interp(mu, self.mu_vector, self.legendre[0]),
-                            np.interp(r_12, self.r_12_vector, xi_ell_dict['xi_2_bf']) * np.interp(mu, self.mu_vector, self.legendre[2]),
-                            np.interp(r_12, self.r_12_vector, xi_ell_dict['xi_4_bf']) * np.interp(mu, self.mu_vector, self.legendre[4])
-                        ])
-                        integrand['integrand_ff'][i, j] = phi_values[i] * phi_values[j] * sum([
-                            np.interp(r_12, self.r_12_vector, xi_ell_dict['xi_0_ff']) * np.interp(mu, self.mu_vector, self.legendre[0]),
-                            np.interp(r_12, self.r_12_vector, xi_ell_dict['xi_2_ff']) * np.interp(mu, self.mu_vector, self.legendre[2]),
-                            np.interp(r_12, self.r_12_vector, xi_ell_dict['xi_4_ff']) * np.interp(mu, self.mu_vector, self.legendre[4])
-                        ])
-                    except ValueError:
-                        print(f"Error for r_12={r_12}, mu={mu}")
+#                     try:
+#                         for component in self.components:
+#                             integrand[f'integrand_{component}'][i, j] = phi_values[i] * phi_values[j] * sum(
+#                                 np.interp(r_12, self.r_12_vector, xi_ell_dict[f'xi_{ell}_{component}']) * 
+#                                 np.interp(mu, self.mu_vector, self.legendre[ell])
+#                                 for ell in self.ells
+#                             )
+#                     except ValueError:
+#                         print(f"Error for r_12={r_12}, mu={mu}")
+
+        r_12_values = np.sqrt(r_values[:, None]**2 + r_values[None, :]**2 - 2 * r_values[:, None] * r_values[None, :] * np.cos(theta))
+        mu_values = (r_values[None, :] - r_values[:, None]) / r_12_values
+
+        xi_ell_dict_interp = {}
+        legendre_interp = {}
+
+        for component in self.components:
+            xi_ell_dict_interp[component] = {}
+            for ell in self.ells:
+                xi_ell_dict_interp[component][ell] = np.interp(r_12_values, self.r_12_vector, xi_ell_dict[f'xi_{ell}_{component}'])
+            legendre_interp[component] = {}
+            for ell in self.ells:
+                legendre_interp[component][ell] = np.interp(mu_values, self.mu_vector, self.legendre[ell])
+
+        for component in self.components:
+            integrand_sum = np.zeros_like(r_12_values)
+            for ell in self.ells:
+                integrand_sum += xi_ell_dict_interp[component][ell] * legendre_interp[component][ell]
+
+            integrand_key = f'integrand_{component}'
+            integrand[f'{integrand_key}'] = phi_values[:, None] * phi_values[None, :] * integrand_sum
+
+        for key in integrand.keys():
+            integrand[key] = np.triu(integrand[key]) + np.triu(integrand[key], 1).T
                 
         wtheta_dict = {
-            'wtheta_bb': np.trapz(np.trapz(integrand['integrand_bb'], z_values), z_values),
-            'wtheta_bf': np.trapz(np.trapz(integrand['integrand_bf'], z_values), z_values),
-            'wtheta_ff': np.trapz(np.trapz(integrand['integrand_ff'], z_values), z_values),
+            f'wtheta_{component}': np.trapz(np.trapz(integrand[f'integrand_{component}'], z_values), z_values)
+            for component in self.components
         }
         return wtheta_dict
 
@@ -351,19 +338,17 @@ class WThetaCalculator:
 
         # Organize the results into dictionaries
         wtheta_dict = {
-            'wtheta_bb': np.array([w_dict[i]['wtheta_bb'] for i in range(len(self.theta))]),
-            'wtheta_bf': np.array([w_dict[i]['wtheta_bf'] for i in range(len(self.theta))]),
-            'wtheta_ff': np.array([w_dict[i]['wtheta_ff'] for i in range(len(self.theta))]),
+            f'wtheta_{component}': np.array([w_dict[i][f'wtheta_{component}'] for i in range(len(self.theta))])
+            for component in self.components
         }
 
         # Save wtheta results for each component
-        components = ['bb', 'bf', 'ff']
-        for comp in components:
+        for component in self.components:
             np.savetxt(
-                f"{self.path}/wtheta_{comp}_bin{bin_z}.txt",
+                f"{self.path_template}/wtheta_{component}_bin{bin_z}.txt",
                 np.column_stack([
                     self.theta,
-                    wtheta_dict[f'wtheta_{comp}']
+                    wtheta_dict[f'wtheta_{component}']
                 ])
             )
         
