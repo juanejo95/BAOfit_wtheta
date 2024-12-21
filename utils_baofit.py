@@ -1,34 +1,50 @@
 import numpy as np
+import os
 from scipy.optimize import minimize
 from scipy.stats import chi2
 from scipy.interpolate import interp1d
+import itertools
 import matplotlib.pyplot as plt
 plt.rcParams["text.usetex"] = True
 plt.rcParams["font.family"] = "serif"
 plt.rcParams["font.serif"] = "Times New Roman"
+from utils import RedshiftDistributions
+from utils_template import PowerSpectrumMultipoles
 
-class wtheta_model:
-    def __init__(self, alpha_min, alpha_max, galaxy_bias, n_broadband, bins_removed, path_template):
+class WThetaModel:
+    def __init__(self, include_wiggles, nz_flag, cosmology_template, n_broadband, galaxy_bias):
         """
-        Initialize the wtheta_model class with necessary parameters and settings.
+        Initialize the WThetaModel class with parameters and settings for modeling 
+        the angular correlation function, w(θ).
 
         Args:
-            alpha_min (float): Minimum allowed alpha value.
-            alpha_max (float): Maximum allowed alpha value.
-            galaxy_bias (dict): Linear galaxy bias for each redshift bin.
-            n_broadband (int): The number of broadband bins.
-            bins_removed (list): List of bins removed for the fitting.
-            path_template (str): Path where theoretical wtheta files are located.
+            include_wiggles (str): Specifies whether the power spectrum includes BAO wiggles.
+            nz_flag (str): Configuration flag for the n(z) number density distribution.
+            cosmology_template (str): Identifier for the cosmology template used.
+            n_broadband (int): Number of broadband terms in the model.
+            galaxy_bias (dict): Dictionary containing the linear galaxy bias for each 
+                redshift bin. Keys are the bin indices, and values are the galaxy bias 
+                values.
         """
-        self.alpha_min = alpha_min
-        self.alpha_max = alpha_max
+        self.include_wiggles = include_wiggles
+        self.nz_flag = nz_flag
+        self.cosmology_template = cosmology_template
         self.galaxy_bias = galaxy_bias
         self.n_broadband = n_broadband
-        self.bins_removed = bins_removed
-        self.path_template = path_template
-
-        # Set nbins based on the number of bins (e.g., from the template data)
-        self.nbins = len(galaxy_bias)  # You may want to adjust this based on your specific needs
+        
+        self.alpha_min = 0.8
+        self.alpha_max = 1.2
+        
+        self.path_template = PowerSpectrumMultipoles(
+            include_wiggles=self.include_wiggles,
+            nz_flag=self.nz_flag,
+            cosmology_template=self.cosmology_template,
+            verbose=False,
+            lazy_init=True
+        ).path_template
+        
+        nz_instance = RedshiftDistributions(self.nz_flag)
+        self.nbins = nz_instance.nbins
 
         # Predefined values based on the given context
         self.names_params = np.array([
@@ -135,40 +151,127 @@ class wtheta_model:
 
         return wtheta_template
 
-class bao_fit:
-    def __init__(self, wtheta_model_instance, theta_data, wtheta_data, cov, path_baofit):
+class PathBAOFit:
+    def __init__(self, include_wiggles, dataset, weight_type, nz_flag, cov_type, cosmology_template,
+                 cosmology_covariance, delta_theta, theta_min, theta_max, n_broadband, bins_removed, verbose=True):
+        """
+        Initialize the PathBAOFit class to generate a save directory path based on various parameters.
+
+        Args:
+            include_wiggles (str): Indicates whether wiggles are included.
+            dataset (str): The dataset identifier (e.g., "COLA" or others).
+            weight_type (str): The weight type (e.g., "unweighted", "weighted").
+            nz_flag (str): The flag used for the n(z) configuration.
+            cov_type (str): The type of covariance.
+            cosmology_template (str): The cosmology template identifier.
+            cosmology_covariance (str): The cosmology covariance.
+            delta_theta (float): The delta theta value.
+            theta_min (float): The minimum theta value.
+            theta_max (float): The maximum theta value.
+            n_broadband (int): The number of broadband bins.
+            bins_removed (str): None, 012, 345, etc.
+            verbose (bool): Whether to print the save directory message. Default is True.
+        """
+        self.include_wiggles = include_wiggles
+        self.dataset = dataset
+        self.weight_type = weight_type
+        self.nz_flag = nz_flag
+        self.cov_type = cov_type
+        self.cosmology_template = cosmology_template
+        self.cosmology_covariance = cosmology_covariance
+        self.delta_theta = delta_theta
+        self.theta_min = theta_min
+        self.theta_max = theta_max
+        self.n_broadband = n_broadband
+        self.bins_removed = bins_removed
+        self.verbose = verbose
+        
+        # We change the format of bins_removed to make it managable
+        nz_instance = RedshiftDistributions(self.nz_flag, verbose=False)
+        self.nbins = nz_instance.nbins
+        def generate_bin_mappings():
+            bin_mappings = {
+                'None': [],
+            }
+            for i in range(1, self.nbins):
+                for combo in itertools.combinations(range(self.nbins), i):
+                    key = ''.join(map(str, combo))
+                    bin_mappings[key] = list(combo)
+            return bin_mappings
+
+        bin_mappings = generate_bin_mappings() # all the different possibilities
+        self.bins_removed = bin_mappings[self.bins_removed]
+
+    def __call__(self):
+        """
+        Generate the save directory path and print the message when the instance is called, 
+        if verbose is True.
+        """
+        if self.dataset == 'COLA':
+            path_baofit = (
+                f"fit_results{self.include_wiggles}/{self.dataset}/nz{self.nz_flag}_cov{self.cov_type}_"
+                f"{self.cosmology_template}temp_{self.cosmology_covariance}cov_deltatheta{self.delta_theta}_"
+                f"thetamin{self.theta_min}_thetamax{self.theta_max}_{self.n_broadband}broadband_binsremoved{self.bins_removed}"
+            )
+        elif self.dataset == 'DESY6':
+            path_baofit = (
+                f"fit_results{self.include_wiggles}/{self.dataset}_{self.weight_type}/nz{self.nz_flag}_cov{self.cov_type}_"
+                f"{self.cosmology_template}temp_{self.cosmology_covariance}cov_deltatheta{self.delta_theta}_"
+                f"thetamin{self.theta_min}_thetamax{self.theta_max}_{self.n_broadband}broadband_binsremoved{self.bins_removed}"
+            )
+
+        os.makedirs(path_baofit, exist_ok=True)
+        if self.verbose:
+            print(f"Saving output to: {path_baofit}")
+
+        return path_baofit
+
+class BAOFit:
+    def __init__(self, wtheta_model, theta_data, wtheta_data, cov, path_baofit):
         """
         Initialize the BAO fit class.
+
+        Args:
+            wtheta_model: An instance of the wtheta_model class.
+            theta_data (array): Theta data for fitting.
+            wtheta_data (list of arrays): Observed wtheta data for each bin.
+            cov (array): Covariance matrix.
+            path_baofit (PathBAOFit): Instance of the PathBAOFit class.
         """
-        self.wtheta_model_instance = wtheta_model_instance
-        self.wtheta_template = wtheta_model_instance.get_wtheta_template()
+        self.wtheta_model = wtheta_model
+        self.wtheta_template = wtheta_model.get_wtheta_template()
         self.theta_data = theta_data
         self.wtheta_data = wtheta_data
         self.cov = cov
         self.inv_cov = np.linalg.inv(cov)  # Compute the inverse covariance matrix
-        self.path_baofit = path_baofit
-        self.n_broadband = wtheta_model_instance.n_broadband
-        self.nbins = wtheta_model_instance.nbins
-        
-        # Define the concatenated wtheta data
+        self.n_broadband = wtheta_model.n_broadband
+        self.nbins = wtheta_model.nbins
+
+        # Retrieve path and bins_removed from PathBAOFit
+        self.path_baofit = path_baofit()
+        self.bins_removed = path_baofit.bins_removed
+
+        # Concatenate wtheta data
         self.wtheta_data_concatenated = np.concatenate([self.wtheta_data[bin_z] for bin_z in range(self.nbins)])
-        self.bins_removed = [bin_z for bin_z in range(self.nbins) if np.all(self.wtheta_data[bin_z] == 0)]
-        
+
         # Number of parameters
-        self.n_params = len(wtheta_model_instance.names_params)
-        self.n_params_true = len(wtheta_model_instance.names_params) - (1 + self.n_broadband) * len(self.bins_removed)
+        self.n_params = len(wtheta_model.names_params)
+        self.n_params_true = len(wtheta_model.names_params) - (1 + self.n_broadband) * len(self.bins_removed)
 
         # Precompute positions of amplitude and broadband parameters
-        self.pos_amplitude = np.array([1 + i * (self.n_broadband + 1) for i in np.arange(0, self.nbins)])
-        self.pos_broadband = np.delete(np.arange(0, self.n_params), np.concatenate(([0], self.pos_amplitude)))
-        
+        self.pos_amplitude = np.array([1 + i * (self.n_broadband + 1) for i in range(self.nbins)])
+        self.pos_broadband = np.delete(np.arange(self.n_params), np.concatenate(([0], self.pos_amplitude)))
+
         # Construct the design matrix
         self.design_matrix = np.zeros([len(self.wtheta_data_concatenated), self.nbins * self.n_broadband])
         self._construct_design_matrix()
 
         # Compute the pseudo-inverse of the design matrix
-        self.pseudo_inverse_matrix = np.linalg.inv((self.design_matrix.T) @ self.inv_cov @ self.design_matrix) @ (self.design_matrix.T) @ self.inv_cov
-
+        self.pseudo_inverse_matrix = (
+            np.linalg.inv((self.design_matrix.T @ self.inv_cov @ self.design_matrix))
+            @ (self.design_matrix.T @ self.inv_cov)
+        )
+    
     def _construct_design_matrix(self):
         """Construct the model matrix."""
         for j in np.arange(0, self.nbins * self.n_broadband):
@@ -203,9 +306,9 @@ class bao_fit:
 
     def fit(self):
         """Perform the fitting procedure to find the best-fit alpha."""
-        tol_minimize = 1e-7
-        n = 2 * 10**2
-        alpha_vector = np.linspace(self.wtheta_model_instance.alpha_min, self.wtheta_model_instance.alpha_max, n)
+        tol_minimize = 10**-7
+        n = 10**3
+        alpha_vector = np.linspace(self.wtheta_model.alpha_min, self.wtheta_model.alpha_max, n)
         chi2_vector = np.zeros(n)
 
         for i in np.arange(0, n):
@@ -272,6 +375,7 @@ class bao_fit:
                 chi2_best = chi2_best_new
             else:
                 print('There is a problem with the fit!')
+                sys.exit()
                 
             # Compute the error region (1-sigma)
             err_alpha = (alpha_up - alpha_down) / 2
@@ -337,7 +441,7 @@ class bao_fit:
             plt.close(fig)
                 
         else:
-            print('The fit does not have the 1-sigma region between ' + str(self.wtheta_model_instance.alpha_min) + ' and ' + str(self.wtheta_model_instance.alpha_max))
+            print('The fit does not have the 1-sigma region between ' + str(self.wtheta_model.alpha_min) + ' and ' + str(self.wtheta_model.alpha_max))
             
             err_alpha = 9999
             

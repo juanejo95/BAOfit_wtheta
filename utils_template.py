@@ -1,39 +1,99 @@
 import numpy as np
-import scipy.special
-from cosmoprimo import PowerSpectrumBAOFilter
+import os
+import scipy
 import multiprocessing
 from functools import partial
+from cosmoprimo import Cosmology, PowerSpectrumBAOFilter
+from utils import CosmologicalParameters, RedshiftDistributions
 
 class PowerSpectrumMultipoles:
-    def __init__(self, cosmo, include_wiggles, nz_instance, Nk, Nmu, path_template, n_cpu=None):
-        self.cosmo = cosmo
-        self.Nmu = Nmu
-        self.path_template = path_template
+    def __init__(self, include_wiggles, nz_flag, cosmology_template, Nk=2*10**5, Nmu=5*10**4, verbose=True, n_cpu=None, lazy_init=False):
+        """
+        Initialize the PowerSpectrumMultipoles class.
+
+        Parameters:
+        - include_wiggles: Indicates whether to include BAO wiggles.
+        - nz_flag: Identifier for the n(z).
+        - cosmology_template: Identifier for the cosmology template.
+        - Nk: Number of k bins.
+        - Nmu: Number of mu bins.
+        - verbose: Whether to print messages.
+        - n_cpu: Number of CPUs for parallel processing (default: all available).
+        - lazy_init: If True, skips expensive calculations during initialization.
+        """
         self.include_wiggles = include_wiggles
-        self.nz_instance = nz_instance
-        self.n_cpu = n_cpu if n_cpu is not None else multiprocessing.cpu_count()
-
+        self.nz_flag = nz_flag
+        self.cosmology_template = cosmology_template
         self.Nk = Nk
-        self.kh = 10 ** np.linspace(np.log10(1e-4 / cosmo.h), np.log10(1e2), self.Nk)
-        pkz = cosmo.get_fourier(engine='class').pk_interpolator()
-        pk = pkz.to_1d(z=0)
-        self.Pk_wigg = pk(self.kh) / cosmo.h**3
+        self.Nmu = Nmu
+        self.verbose = verbose
+        # self.n_cpu = n_cpu if n_cpu is not None else multiprocessing.cpu_count()
+        self.n_cpu = n_cpu if n_cpu is not None else 20 # Just in case...
 
-        pknow = PowerSpectrumBAOFilter(pk, engine='wallish2018').smooth_pk_interpolator()
-        self.Pk_nowigg = pknow(self.kh) / cosmo.h**3
+        # Redshift distribution
+        self.nz_instance = RedshiftDistributions(self.nz_flag, verbose=verbose)
+        self.nbins = self.nz_instance.nbins
 
-        self.k = self.kh * cosmo.h
-        np.savetxt(f'{path_template}/Pk_full.txt', np.column_stack([self.k, self.Pk_wigg, self.Pk_nowigg]))
-        
-        self.Sigma_0, self.delta_Sigma_0 = self.compute_sigma_parameters()
+        # Automatically define the path_template
+        self.path_template = f"wtheta_template{include_wiggles}/nz_{nz_flag}/wtheta_{cosmology_template}"
+        os.makedirs(self.path_template, exist_ok=True)
+        if verbose:
+            print(f"Saving output to: {self.path_template}")
 
-        self.ells = [0, 2, 4]
-        self.mu_vector = np.linspace(-1, 1, Nmu)
-        self.legendre = {ell: scipy.special.eval_legendre(ell, self.mu_vector) for ell in self.ells}
-        
-        # Different bias components (squared, linear and independent)
-        self.components = ['bb', 'bf', 'ff']
-        
+        if not lazy_init:
+            # Define the cosmology
+            params = CosmologicalParameters(self.cosmology_template, verbose=verbose)
+            cosmo = Cosmology(
+                h=params.h,
+                Omega_cdm=params.Omega_m - params.Omega_b - params.Omega_nu_massive,
+                Omega_b=params.Omega_b,
+                sigma8=params.sigma_8,
+                n_s=params.n_s,
+                Omega_ncdm=params.Omega_nu_massive,
+                N_eff=3.046,
+                engine='class'
+            )
+            self.cosmo = cosmo
+
+            # Initialize k and P(k)
+            self.kh = 10 ** np.linspace(np.log10(10**-4 / cosmo.h), np.log10(10**2), self.Nk)
+            pkz = cosmo.get_fourier(engine="class").pk_interpolator()
+            pk = pkz.to_1d(z=0)
+            self.Pk_wigg = pk(self.kh) / cosmo.h**3
+
+            pknow = PowerSpectrumBAOFilter(pk, engine="wallish2018").smooth_pk_interpolator()
+            self.Pk_nowigg = pknow(self.kh) / cosmo.h**3
+
+            self.k = self.kh * cosmo.h
+            np.savetxt(f"{self.path_template}/Pk_full.txt", np.column_stack([self.k, self.Pk_wigg, self.Pk_nowigg]))
+
+            self.Sigma_0, self.delta_Sigma_0 = self.compute_sigma_parameters()
+
+            # Legendre polynomials
+            self.ells = [0, 2, 4]
+            self.mu_vector = np.linspace(-1, 1, Nmu)
+            self.legendre = {ell: scipy.special.eval_legendre(ell, self.mu_vector) for ell in self.ells}
+
+            # Different bias components (squared, linear and independent)
+            self.components = ["bb", "bf", "ff"]
+
+    def compute_sigma_parameters(self):
+        """Compute Sigma_0 and delta_Sigma_0 using the given cosmology."""
+        k_s = 0.2 * self.cosmo.h
+        ell_BAO = 110 / self.cosmo.h
+
+        q = 10 ** np.linspace(np.log10(self.k.min()), np.log10(k_s), self.Nk)
+        Pq_nowigg = np.interp(q, self.k, self.Pk_nowigg)
+
+        x = q * ell_BAO
+        j_0 = np.sin(x) / x
+        j_2 = (3 / x**2 - 1) * j_0 - 3 * np.cos(x) / x**2
+
+        Sigma_0 = np.sqrt(np.trapz(Pq_nowigg * (1 - j_0 + 2 * j_2), q) / (6 * np.pi**2))
+        delta_Sigma_0 = np.sqrt(np.trapz(Pq_nowigg * j_2, q) / (2 * np.pi**2))
+
+        return Sigma_0, delta_Sigma_0
+
     def compute_sigma_parameters(self):
         """Compute Sigma_0 and delta_Sigma_0 using the given cosmology."""
         k_s = 0.2 * self.cosmo.h
@@ -67,16 +127,16 @@ class PowerSpectrumMultipoles:
 
     def compute_pk_multipoles(self, bin_z, f, Sigma_tot_vector, i):
         """Compute the Pk multipoles."""
-        if self.include_wiggles == '':
+        if self.include_wiggles == "":
             pk_term = (self.Pk_wigg[i] - self.Pk_nowigg[i]) * np.exp(-self.k[i]**2 * Sigma_tot_vector**2) + self.Pk_nowigg[i]
-        elif self.include_wiggles == '_nowiggles':
+        elif self.include_wiggles == "_nowiggles":
             pk_term = self.Pk_nowigg[i]
-        
+
         pk_dict = {}
         for ell in self.ells:
-            pk_dict[f'Pk_{ell}_bb'] = (2 * ell + 1) / 2 * np.trapz(pk_term * self.legendre[ell], self.mu_vector)
-            pk_dict[f'Pk_{ell}_bf'] = (2 * ell + 1) / 2 * np.trapz(2 * self.mu_vector**2 * f * pk_term * self.legendre[ell], self.mu_vector)
-            pk_dict[f'Pk_{ell}_ff'] = (2 * ell + 1) / 2 * np.trapz(self.mu_vector**4 * f**2 * pk_term * self.legendre[ell], self.mu_vector)
+            pk_dict[f"Pk_{ell}_bb"] = (2 * ell + 1) / 2 * np.trapz(pk_term * self.legendre[ell], self.mu_vector)
+            pk_dict[f"Pk_{ell}_bf"] = (2 * ell + 1) / 2 * np.trapz(2 * self.mu_vector**2 * f * pk_term * self.legendre[ell], self.mu_vector)
+            pk_dict[f"Pk_{ell}_ff"] = (2 * ell + 1) / 2 * np.trapz(self.mu_vector**4 * f**2 * pk_term * self.legendre[ell], self.mu_vector)
 
         return pk_dict
 
@@ -85,21 +145,21 @@ class PowerSpectrumMultipoles:
         z = self.nz_instance.z_average(bin_z)
         f = self.cosmo.growth_rate(z)
         Sigma_tot_vector = self.compute_sigma_tot_vector(z, f)
-        
+
         print("WARNING: P_ell(k) will be computed for all k values in parallel!")
         print(f"{bin_z} - Computing Pk_ell...")
 
-        pk_ell_dict = {f'Pk_{ell}_{component}': np.zeros(len(self.k)) for ell in self.ells for component in self.components}
+        pk_ell_dict = {f"Pk_{ell}_{component}": np.zeros(len(self.k)) for ell in self.ells for component in self.components}
 
         with multiprocessing.Pool(self.n_cpu) as pool:
             pk_dict = pool.map(partial(self.compute_pk_multipoles, bin_z, f, Sigma_tot_vector), range(len(self.k)))
-            
+
         for i, result in enumerate(pk_dict):
             for key in result:
                 pk_ell_dict[key][i] = result[key]
 
         for component in self.components:
-            data = np.column_stack([self.k] + [pk_ell_dict[f'Pk_{ell}_{component}'] for ell in self.ells])
+            data = np.column_stack([self.k] + [pk_ell_dict[f"Pk_{ell}_{component}"] for ell in self.ells])
             np.savetxt(f"{self.path_template}/Pk_ell_{component}_bin{bin_z}.txt", data)
 
         print(f"{bin_z} - Pk_ell computed!")
@@ -136,7 +196,7 @@ class CorrelationFunctionMultipoles:
         - bin_z: Redshift bin number to load the data for.
         
         Returns:
-        - pk_ell_dict: Dictionary containing precomputed Pk_ell data for different multipoles.
+        - pk_ell_dict: Dictionary containing the precomputed Pk_ell data.
         """
         print(f"{bin_z} - Loading precomputed Pk_ell data...")
 
@@ -153,10 +213,10 @@ class CorrelationFunctionMultipoles:
 
         Parameters:
         - r: Radial distance.
-        - pk_ell_dict: Dictionary containing Pk_ell data.
+        - pk_ell_dict: Dictionary containing the Pk_ell data.
         
         Returns:
-        - xi_dict: Dictionary containing xi_ell values for different types.
+        - xi_dict: Dictionary containing the xi_ell data.
         """
         x = self.k * r
         x_square_inv = 1 / x**2
@@ -183,7 +243,7 @@ class CorrelationFunctionMultipoles:
         - bin_z: Redshift bin number.
 
         Returns:
-        - xi_ell_dict: Dictionary containing the xi_ell values for different types.
+        - xi_ell_dict: Dictionary containing the xi_ell data.
         """
         print("WARNING: xi_ell(r) will be computed for all r values in parallel!")
         print(f"{bin_z} - Computing xi_ell...")
