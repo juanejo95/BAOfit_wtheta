@@ -5,14 +5,14 @@ import multiprocessing
 from functools import partial
 
 class PowerSpectrumMultipoles:
-    def __init__(self, cosmo, include_wiggles, nz_instance, Nk, Nmu, path_template):
+    def __init__(self, cosmo, include_wiggles, nz_instance, Nk, Nmu, path_template, n_cpu=None):
         self.cosmo = cosmo
         self.Nmu = Nmu
         self.path_template = path_template
         self.include_wiggles = include_wiggles
         self.nz_instance = nz_instance
+        self.n_cpu = n_cpu if n_cpu is not None else multiprocessing.cpu_count()
 
-        # Precompute k, Pk_wigg, and Pk_nowigg
         self.Nk = Nk
         self.kh = 10 ** np.linspace(np.log10(1e-4 / cosmo.h), np.log10(1e2), self.Nk)
         pkz = cosmo.get_fourier(engine='class').pk_interpolator()
@@ -22,12 +22,11 @@ class PowerSpectrumMultipoles:
         pknow = PowerSpectrumBAOFilter(pk, engine='wallish2018').smooth_pk_interpolator()
         self.Pk_nowigg = pknow(self.kh) / cosmo.h**3
 
-        self.k = self.kh * cosmo.h  # Precompute k in units of h
+        self.k = self.kh * cosmo.h
         np.savetxt(f'{path_template}/Pk_full.txt', np.column_stack([self.k, self.Pk_wigg, self.Pk_nowigg]))
         
         self.Sigma_0, self.delta_Sigma_0 = self.compute_sigma_parameters()
 
-        # Precompute mu_vector and legendre polynomials for ell = 0, 2, 4
         self.ells = [0, 2, 4]
         self.mu_vector = np.linspace(-1, 1, Nmu)
         self.legendre = {ell: scipy.special.eval_legendre(ell, self.mu_vector) for ell in self.ells}
@@ -66,10 +65,8 @@ class PowerSpectrumMultipoles:
             + f * self.mu_vector**2 * (self.mu_vector**2 - 1) * delta_Sigma**2
         )
 
-    def compute_pk_multipoles(self, i, bin_z, Sigma_tot_vector):
+    def compute_pk_multipoles(self, bin_z, f, Sigma_tot_vector, i):
         """Compute the Pk multipoles."""
-        z = self.nz_instance.z_average(bin_z)
-        f = self.cosmo.growth_rate(z)
         if self.include_wiggles == '':
             pk_term = (self.Pk_wigg[i] - self.Pk_nowigg[i]) * np.exp(-self.k[i]**2 * Sigma_tot_vector**2) + self.Pk_nowigg[i]
         elif self.include_wiggles == '_nowiggles':
@@ -88,17 +85,19 @@ class PowerSpectrumMultipoles:
         z = self.nz_instance.z_average(bin_z)
         f = self.cosmo.growth_rate(z)
         Sigma_tot_vector = self.compute_sigma_tot_vector(z, f)
-
+        
+        print("WARNING: P_ell(k) will be computed for all k values in parallel!")
         print(f"{bin_z} - Computing Pk_ell...")
 
         pk_ell_dict = {f'Pk_{ell}_{component}': np.zeros(len(self.k)) for ell in self.ells for component in self.components}
 
-        for i in range(len(self.k)):
-            pk_dict = self.compute_pk_multipoles(i, bin_z, Sigma_tot_vector)
-            for key, value in pk_dict.items():
-                pk_ell_dict[key][i] = value
+        with multiprocessing.Pool(self.n_cpu) as pool:
+            pk_dict = pool.map(partial(self.compute_pk_multipoles, bin_z, f, Sigma_tot_vector), range(len(self.k)))
+            
+        for i, result in enumerate(pk_dict):
+            for key in result:
+                pk_ell_dict[key][i] = result[key]
 
-        # Save pk_ell_dict
         for component in self.components:
             data = np.column_stack([self.k] + [pk_ell_dict[f'Pk_{ell}_{component}'] for ell in self.ells])
             np.savetxt(f"{self.path_template}/Pk_ell_{component}_bin{bin_z}.txt", data)
@@ -117,9 +116,8 @@ class CorrelationFunctionMultipoles:
         """
         self.path_template = power_spectrum_multipoles.path_template
         self.Nr = Nr
-        self.k = power_spectrum_multipoles.k  # Get the k array from PowerSpectrumMultipoles instance
+        self.k = power_spectrum_multipoles.k
 
-        # Define r_12_vector directly within the class
         self.r_12_vector = 10**np.linspace(np.log10(10**-2), np.log10(10**5), Nr)
         
         self.nz_instance = power_spectrum_multipoles.nz_instance
@@ -128,6 +126,7 @@ class CorrelationFunctionMultipoles:
         self.legendre = power_spectrum_multipoles.legendre
         self.ells = power_spectrum_multipoles.ells
         self.components = power_spectrum_multipoles.components
+        self.n_cpu = power_spectrum_multipoles.n_cpu
 
     def load_pk_ell_data(self, bin_z):
         """
@@ -148,7 +147,7 @@ class CorrelationFunctionMultipoles:
         }
         return pk_ell_dict
 
-    def compute_xi_multipoles(self, r, pk_ell_dict):
+    def compute_xi_multipoles(self, pk_ell_dict, r):
         """
         Compute the correlation function multipoles (xi_ell) for a given radial distance.
 
@@ -175,32 +174,31 @@ class CorrelationFunctionMultipoles:
                     j_ell_x * self.k**2 / (2 * np.pi**2) * pk_ell_dict[f'Pk_{ell}_{component}'], self.k
                 )
         return xi_dict
-
+    
     def compute_xi_ell(self, bin_z):
         """
         Main method to compute the correlation function multipoles (xi_ell) for a given redshift bin.
-        
+
         Parameters:
         - bin_z: Redshift bin number.
-        
+
         Returns:
         - xi_ell_dict: Dictionary containing the xi_ell values for different types.
         """
+        print("WARNING: xi_ell(r) will be computed for all r values in parallel!")
         print(f"{bin_z} - Computing xi_ell...")
 
-        # Load the precomputed Pk_ell data
         pk_ell_dict = self.load_pk_ell_data(bin_z)
 
         xi_ell_dict = {f'xi_{ell}_{component}': np.zeros(self.Nr) for component in self.components for ell in self.ells}
-        for i, r_12 in enumerate(self.r_12_vector):
-            xi_dict = self.compute_xi_multipoles(r_12, pk_ell_dict)
-            for key, value in xi_dict.items():
+
+        with multiprocessing.Pool(self.n_cpu) as pool:
+            xi_dict = pool.map(partial(self.compute_xi_multipoles, pk_ell_dict), self.r_12_vector)
+
+        for i, result in enumerate(xi_dict):
+            for key, value in result.items():
                 xi_ell_dict[key][i] = value
 
-            if (i + 1) % (self.Nr // 10) == 0:
-                print(f"{bin_z} - {int((i + 1) / self.Nr * 100)}%")
-
-        # Save xi_ell_dict
         for component in self.components:
             np.savetxt(
                 f"{self.path_template}/xi_ell_{component}_bin{bin_z}.txt",
@@ -211,7 +209,7 @@ class CorrelationFunctionMultipoles:
         return xi_ell_dict
 
 class WThetaCalculator:
-    def __init__(self, correlation_function_multipoles, Nz, Ntheta, n_cpu=None):
+    def __init__(self, correlation_function_multipoles, Nz, Ntheta):
         """
         Initialize the WThetaCalculator class.
 
@@ -228,12 +226,10 @@ class WThetaCalculator:
         self.mu_vector = correlation_function_multipoles.mu_vector
         self.legendre = correlation_function_multipoles.legendre
         self.ells = correlation_function_multipoles.ells
-        self.Nz = Nz
         self.components = correlation_function_multipoles.components
+        self.n_cpu = correlation_function_multipoles.n_cpu
+        self.Nz = Nz
         self.theta = 10**np.linspace(np.log10(0.001), np.log10(179.5), Ntheta) * np.pi / 180
-
-        # Define default n_cpu if not provided
-        self.n_cpu = n_cpu if n_cpu is not None else multiprocessing.cpu_count()
 
     def load_xi_ell_data(self, bin_z):
         """
@@ -245,6 +241,8 @@ class WThetaCalculator:
         Returns:
         - xi_ell_dict: Dictionary containing the xi_ell data for different multipoles.
         """
+        print(f"{bin_z} - Loading precomputed xi_ell data...")
+        
         xi_ell_dict = {
             f'xi_{ell}_{component}': np.loadtxt(f"{self.path_template}/xi_ell_{component}_bin{bin_z}.txt")[:, ell_idx + 1]
             for component in self.components
@@ -252,7 +250,7 @@ class WThetaCalculator:
         }
         return xi_ell_dict
 
-    def wtheta_calculator(self, bin_z, theta):
+    def wtheta_calculator(self, bin_z, xi_ell_dict, theta):
         """
         Compute the wtheta for a given redshift bin and a single value of theta.
 
@@ -268,8 +266,6 @@ class WThetaCalculator:
         phi_values = self.nz_instance.nz_interp(z_values, bin_z) * D_values
         r_values = self.cosmo.comoving_radial_distance(z_values) / self.cosmo.h
         
-        xi_ell_dict = self.load_xi_ell_data(bin_z)
-
         integrand = {f'integrand_{component}': np.zeros((len(z_values), len(z_values))) for component in self.components}
         
 #         for i in range(len(z_values)):
@@ -299,10 +295,9 @@ class WThetaCalculator:
 
         for component in self.components:
             xi_ell_dict_interp[component] = {}
-            for ell in self.ells:
-                xi_ell_dict_interp[component][ell] = np.interp(r_12_values, self.r_12_vector, xi_ell_dict[f'xi_{ell}_{component}'])
             legendre_interp[component] = {}
             for ell in self.ells:
+                xi_ell_dict_interp[component][ell] = np.interp(r_12_values, self.r_12_vector, xi_ell_dict[f'xi_{ell}_{component}'])
                 legendre_interp[component][ell] = np.interp(mu_values, self.mu_vector, self.legendre[ell])
 
         for component in self.components:
@@ -322,27 +317,26 @@ class WThetaCalculator:
         }
         return wtheta_dict
 
-    def compute_and_save_wtheta(self, bin_z):
+    def compute_wtheta(self, bin_z):
         """
         Compute and save wtheta for a given bin_z using multiprocessing.
 
         Parameters:
         - bin_z: Redshift bin number.
         """
-        # Display warning
-        print("WARNING: w(theta) will be computed for all theta in parallel!")
+        print("WARNING: w(theta) will be computed for all theta values in parallel!")
         print(f"{bin_z} - Computing w(theta)...")
+        
+        xi_ell_dict = self.load_xi_ell_data(bin_z)
 
         with multiprocessing.Pool(self.n_cpu) as pool:
-            w_dict = pool.map(partial(self.wtheta_calculator, bin_z), self.theta)
+            w_dict = pool.map(partial(self.wtheta_calculator, bin_z, xi_ell_dict), self.theta)
 
-        # Organize the results into dictionaries
         wtheta_dict = {
             f'wtheta_{component}': np.array([w_dict[i][f'wtheta_{component}'] for i in range(len(self.theta))])
             for component in self.components
         }
 
-        # Save wtheta results for each component
         for component in self.components:
             np.savetxt(
                 f"{self.path_template}/wtheta_{component}_bin{bin_z}.txt",
@@ -353,5 +347,4 @@ class WThetaCalculator:
             )
         
         print(f"{bin_z} - w(theta) computed!")
-        
         return wtheta_dict
