@@ -1,8 +1,8 @@
 import numpy as np
 import os
 from scipy.optimize import minimize
-from scipy.stats import chi2
 from scipy.interpolate import interp1d
+from pathos.multiprocessing import ProcessingPool as Pool
 import itertools
 import matplotlib.pyplot as plt
 plt.rcParams["text.usetex"] = True
@@ -227,7 +227,7 @@ class PathBAOFit:
         return path_baofit
 
 class BAOFit:
-    def __init__(self, wtheta_model, theta_data, wtheta_data, cov, path_baofit):
+    def __init__(self, wtheta_model, theta_data, wtheta_data, cov, path_baofit, n_cpu=None):
         """
         Initialize the BAO fit class.
 
@@ -237,6 +237,7 @@ class BAOFit:
             wtheta_data (list of arrays): Observed wtheta data for each bin.
             cov (array): Covariance matrix.
             path_baofit (PathBAOFit): Instance of the PathBAOFit class.
+            n_cpu: Number of CPUs for parallel processing (default: 20).
         """
         self.wtheta_model = wtheta_model
         self.wtheta_template = wtheta_model.get_wtheta_template()
@@ -246,6 +247,8 @@ class BAOFit:
         self.inv_cov = np.linalg.inv(cov)  # Compute the inverse covariance matrix
         self.n_broadband = wtheta_model.n_broadband
         self.nbins = wtheta_model.nbins
+        # self.n_cpu = n_cpu if n_cpu is not None else multiprocessing.cpu_count()
+        self.n_cpu = n_cpu if n_cpu is not None else 20 # Just in case...
 
         # Retrieve path and bins_removed from PathBAOFit
         self.path_baofit = path_baofit()
@@ -307,94 +310,61 @@ class BAOFit:
     def fit(self):
         """Perform the fitting procedure to find the best-fit alpha."""
         tol_minimize = 10**-7
-        n = 10**3
+        n = 10**4
         alpha_vector = np.linspace(self.wtheta_model.alpha_min, self.wtheta_model.alpha_max, n)
         chi2_vector = np.zeros(n)
 
-        for i in np.arange(0, n):
+        def compute_chi2(alpha):
             amplitude_params = minimize(self.regularized_least_squares, x0=np.ones(self.nbins), method='SLSQP',
-                                        bounds=([(0, None)] * self.nbins), tol=tol_minimize, args=(alpha_vector[i]))
-            chi2_vector[i] = self.regularized_least_squares(amplitude_params.x, alpha_vector[i])
+                                        bounds=[(0, None)] * self.nbins, tol=tol_minimize, args=(alpha,))
+            chi2_value = self.regularized_least_squares(amplitude_params.x, alpha)
+            return chi2_value
 
-        # Find the best alpha value
+        with Pool(self.n_cpu) as pool: # using multiprocessing with pathos...
+            chi2_vector = np.array(pool.map(compute_chi2, alpha_vector))
+            
         best = np.argmin(chi2_vector)
         alpha_best = alpha_vector[best]
         chi2_best = chi2_vector[best]
-        
-        # Save the likelihood data
+
         np.savetxt(self.path_baofit + '/likelihood_data.txt', np.column_stack([alpha_vector, chi2_vector]))
-        
+
         # Check the chi2 values at the extremes of alpha range
         if chi2_vector[0] > chi2_best + 1 and chi2_vector[-1] > chi2_best + 1:
             # Search for alpha_down and alpha_up where chi2 crosses chi2_best + 1
+            alpha_down = None
+            alpha_up = None
+
+            # Search for alpha_down where chi2 cuts chi2_best + 1 from the left
             for i in np.arange(0, best)[::-1]:
                 if chi2_vector[i] < chi2_best + 1 and chi2_vector[i - 1] > chi2_best + 1:
                     alpha_down = alpha_vector[i]
                     break
 
+            # Search for alpha_up where chi2 cuts chi2_best + 1 from the right
             for i in np.arange(best, n):
                 if chi2_vector[i] < chi2_best + 1 and chi2_vector[i + 1] > chi2_best + 1:
                     alpha_up = alpha_vector[i]
                     break
 
-            # Refine the region around alpha_best
-            alpha_best_vector = np.linspace(alpha_best - 0.01, alpha_best + 0.01, n)
-            chi2_best_vector = np.zeros(n)
-            alpha_down_vector = np.linspace(alpha_down - 0.01, alpha_down + 0.01, n)
-            chi2_down_vector = np.zeros(n)
-            alpha_up_vector = np.linspace(alpha_up - 0.01, alpha_up + 0.01, n)
-            chi2_up_vector = np.zeros(n)
-
-            for i in np.arange(0, n):
-                amplitude_params_best = minimize(self.regularized_least_squares, x0=np.ones(self.nbins), method='SLSQP',
-                                                 bounds=([(0, None)] * self.nbins), tol=tol_minimize, args=(alpha_best_vector[i]))
-                chi2_best_vector[i] = self.regularized_least_squares(amplitude_params_best.x, alpha_best_vector[i])
-
-                amplitude_params_down = minimize(self.regularized_least_squares, x0=np.ones(self.nbins), method='SLSQP',
-                                                 bounds=([(0, None)] * self.nbins), tol=tol_minimize, args=(alpha_down_vector[i]))
-                chi2_down_vector[i] = self.regularized_least_squares(amplitude_params_down.x, alpha_down_vector[i])
-
-                amplitude_params_up = minimize(self.regularized_least_squares, x0=np.ones(self.nbins), method='SLSQP',
-                                               bounds=([(0, None)] * self.nbins), tol=tol_minimize, args=(alpha_up_vector[i]))
-                chi2_up_vector[i] = self.regularized_least_squares(amplitude_params_up.x, alpha_up_vector[i])
-
-            # Find the new best alpha within the refined region
-            best_new = np.argmin(chi2_best_vector)
-            alpha_best_new = alpha_best_vector[best_new]
-            chi2_best_new = chi2_best_vector[best_new]
-
-            # Check for the refined error region bounds
-            alpha_down_new = alpha_down_vector[np.argmin(abs(chi2_down_vector - (chi2_best + 1)))]
-            alpha_up_new = alpha_up_vector[np.argmin(abs(chi2_up_vector - (chi2_best + 1)))]
-            
-            # Update alpha_best, alpha_down, and alpha_up
-            if alpha_best_vector[0] < alpha_best_new < alpha_best_vector[-1] and \
-               alpha_down_vector[0] < alpha_down_new < alpha_down_vector[-1] and \
-               alpha_up_vector[0] < alpha_up_new < alpha_up_vector[-1]:
-                alpha_best, alpha_down, alpha_up = alpha_best_new, alpha_down_new, alpha_up_new
-                chi2_best = chi2_best_new
-            else:
-                print('There is a problem with the fit!')
-                sys.exit()
-                
             # Compute the error region (1-sigma)
             err_alpha = (alpha_up - alpha_down) / 2
-            
+
             # Final amplitude and broadband parameters for the best-fit alpha
             amplitude_params_best = minimize(self.regularized_least_squares, x0=np.ones(self.nbins), method='SLSQP',
-                                        bounds=([(0, None)] * self.nbins), tol=tol_minimize, args=(alpha_best)).x
-            
+                                            bounds=[(0, None)] * self.nbins, tol=tol_minimize, args=(alpha_best)).x
+
             broadband_params_best = self.broadband_params(amplitude_params_best, alpha_best)
-            
+
             params_best = np.zeros(self.n_params)
             params_best[0] = alpha_best
             params_best[self.pos_amplitude] = amplitude_params_best
             params_best[self.pos_broadband] = broadband_params_best
-            
+
             theta_data_interp = np.linspace(self.theta_data[0], self.theta_data[-1], 10**3)
-            
+
             wtheta_fit_best = self.wtheta_template(theta_data_interp, *params_best)
-            
+
             # Plot the w(theta)
             fig, axs = plt.subplots(self.nbins, 1, figsize=(8, 2 * self.nbins), sharex=True)
             for bin_z in range(self.nbins):
@@ -416,7 +386,7 @@ class BAOFit:
             plt.tight_layout()
             plt.savefig(self.path_baofit + '/wtheta_data_bestfit.png', bbox_inches='tight')
             plt.close(fig)
-            
+
             # Save the w(theta)
             np.savetxt(
                 self.path_baofit + '/wtheta_data_bestfit.txt',
@@ -439,12 +409,12 @@ class BAOFit:
             plt.ylabel(r'$\chi^2$', fontsize=14)
             plt.savefig(self.path_baofit + '/chi2_profile.png', bbox_inches='tight')
             plt.close(fig)
-                
+
         else:
             print('The fit does not have the 1-sigma region between ' + str(self.wtheta_model.alpha_min) + ' and ' + str(self.wtheta_model.alpha_max))
-            
+
             err_alpha = 9999
-            
+
             # Plot the chi-squared vs alpha
             fig = plt.figure()
             plt.plot(alpha_vector, chi2_vector)
@@ -454,12 +424,12 @@ class BAOFit:
             plt.ylabel(r'$\chi^2$', fontsize=14)
             plt.savefig(self.path_baofit + '/chi2_profile_bad.png', bbox_inches='tight')
             plt.close(fig)
-        
+
         # Calculate degrees of freedom (dof)
         dof = len(self.wtheta_data_concatenated) - self.n_params_true
         for bin_z in self.bins_removed:
             dof -= len(self.wtheta_data[bin_z])
-        
+
         # Save the results
         results = np.array([[alpha_best, err_alpha, chi2_best, dof]])
         np.savetxt(self.path_baofit + '/fit_results.txt', results, fmt=['%.4f', '%.4f', '%.4f', '%d'])
@@ -467,6 +437,5 @@ class BAOFit:
         # Print them to the console as well
         print(f'Best-fit alpha = {alpha_best:.4f} ± {err_alpha:.4f}')
         print(f'chi2/dof = {chi2_best:.4f}/{dof}')
-
 
         return alpha_best, err_alpha, chi2_best, dof

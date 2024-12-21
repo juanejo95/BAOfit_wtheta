@@ -18,7 +18,7 @@ class PowerSpectrumMultipoles:
         - Nk: Number of k bins.
         - Nmu: Number of mu bins.
         - verbose: Whether to print messages.
-        - n_cpu: Number of CPUs for parallel processing (default: all available).
+        - n_cpu: Number of CPUs for parallel processing (default: 20).
         - lazy_init: If True, skips expensive calculations during initialization.
         """
         self.include_wiggles = include_wiggles
@@ -277,7 +277,6 @@ class WThetaCalculator:
         - correlation_function_multipoles: Instance of the class containing correlation function multipoles (xi_ell).
         - Nz: Number of redshift bins for the double redshift integral.
         - Ntheta: Number of theta bins.
-        - n_cpu: Number of CPU cores to use for multiprocessing. Default: all available cores.
         """
         self.nz_instance = correlation_function_multipoles.nz_instance
         self.cosmo = correlation_function_multipoles.cosmo

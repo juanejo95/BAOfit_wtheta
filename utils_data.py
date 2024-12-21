@@ -1,7 +1,7 @@
 import numpy as np
 import sys
 
-class WThetaCovarianceData:
+class WThetaDataCovariance:
     def __init__(self, dataset, weight_type, cov_type, cosmology_covariance, delta_theta, theta_min, theta_max, 
                  bins_removed, diag_only, remove_crosscov, nbins):
         self.dataset = dataset
@@ -71,7 +71,7 @@ class WThetaCovarianceData:
 
         theta_cov_concatenated = np.concatenate([theta_cov] * self.nbins)
 
-        if abs(theta_wtheta_data_concatenated - theta_cov_concatenated[indices_theta_allbins_concatenated]).max() > 1e-5:
+        if abs(theta_wtheta_data_concatenated - theta_cov_concatenated[indices_theta_allbins_concatenated]).max() > 10**-5:
             print('The covariance matrix and the wtheta of the mocks do not have the same theta')
             sys.exit()
 
@@ -103,21 +103,4 @@ class WThetaCovarianceData:
         theta_data, wtheta_data, indices_theta_allbins_concatenated, theta_wtheta_data_concatenated = self.load_wtheta_data()
         cov = self.load_covariance_matrix(indices_theta_allbins_concatenated, theta_wtheta_data_concatenated)
         return theta_data, wtheta_data, cov
-
-# # Example usage
-# nbins = 5
-# processor = WThetaCovarianceProcessor(
-#     delta_theta=0.2,
-#     weight_type='default',
-#     theta_min=0.1,
-#     theta_max=5.0,
-#     bins_removed=[1, 2],
-#     cov_type='cosmolike_data',
-#     cosmology_covariance='mice',
-#     remove_crosscov='y',
-#     diag_only='n',
-#     nbins=nbins,
-#     dataset='DESY6'
-# )
-
-# theta_data, wtheta_data, cov = processor.process()
+    
