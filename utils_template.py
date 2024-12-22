@@ -4,78 +4,205 @@ import scipy
 import multiprocessing
 from functools import partial
 from cosmoprimo import Cosmology, PowerSpectrumBAOFilter
-from utils import CosmologicalParameters, RedshiftDistributions
+from cosmoprimo.fiducial import DESI
+from utils_cosmology import CosmologicalParameters
+from utils_data import RedshiftDistributions
 
-class PowerSpectrumMultipoles:
-    def __init__(self, include_wiggles, nz_flag, cosmology_template, Nk=2*10**5, Nmu=5*10**4, verbose=True, n_cpu=None, lazy_init=False):
+class TemplateInitializer:
+    def __init__(self, include_wiggles, nz_flag, cosmology_template, Nk=2*10**5, Nmu=5*10**4, Nr=5*10**4, Nz=10**3, Ntheta=10**3, n_cpu=None, verbose=True):
         """
-        Initialize the PowerSpectrumMultipoles class.
+        Initializes the path_template based on input parameters.
 
         Parameters:
-        - include_wiggles: Indicates whether to include BAO wiggles.
+        - include_wiggles: Whether to include BAO wiggles.
         - nz_flag: Identifier for the n(z).
         - cosmology_template: Identifier for the cosmology template.
-        - Nk: Number of k bins.
-        - Nmu: Number of mu bins.
-        - verbose: Whether to print messages.
         - n_cpu: Number of CPUs for parallel processing (default: 20).
-        - lazy_init: If True, skips expensive calculations during initialization.
+        - verbose: Whether to print messages.
         """
         self.include_wiggles = include_wiggles
         self.nz_flag = nz_flag
         self.cosmology_template = cosmology_template
         self.Nk = Nk
         self.Nmu = Nmu
+        self.Nr = Nr
+        self.Nz = Nz
+        self.Ntheta = Ntheta
+        self.n_cpu = n_cpu if n_cpu is not None else 20  # Default to 20 if not provided
         self.verbose = verbose
-        # self.n_cpu = n_cpu if n_cpu is not None else multiprocessing.cpu_count()
-        self.n_cpu = n_cpu if n_cpu is not None else 20 # Just in case...
+        
+        self.mu_vector = np.linspace(-1, 1, self.Nmu)
+        self.r_12_vector = 10**np.linspace(np.log10(10**-2), np.log10(10**5), self.Nr)
+        self.theta = 10**np.linspace(np.log10(0.001), np.log10(179.5), self.Ntheta) * np.pi / 180
+        
+        # Legendre polynomials
+        self.ells = [0, 2, 4]
+        self.legendre = {ell: scipy.special.eval_legendre(ell, self.mu_vector) for ell in self.ells}
 
-        # Redshift distribution
-        self.nz_instance = RedshiftDistributions(self.nz_flag, verbose=verbose)
-        self.nbins = self.nz_instance.nbins
+        # Bias components
+        self.components = ["bb", "bf", "ff"]
 
-        # Automatically define the path_template
+        # Generate the path_template
         self.path_template = f"wtheta_template{include_wiggles}/nz_{nz_flag}/wtheta_{cosmology_template}"
+        
+        # Make sure the directory exists
         os.makedirs(self.path_template, exist_ok=True)
+
         if verbose:
             print(f"Saving output to: {self.path_template}")
+            
+        # Redshift distribution
+        self.nz_instance = RedshiftDistributions(self.nz_flag, verbose=False)
+        self.nbins = self.nz_instance.nbins
+        
+        # Initialize cosmology
+        self._initialize_cosmology()
+        
+        self.kh = 10 ** np.linspace(np.log10(10**-4 / self.cosmo.h), np.log10(10**2), self.Nk)
+        self.k = self.kh * self.cosmo.h
 
-        if not lazy_init:
-            # Define the cosmology
-            params = CosmologicalParameters(self.cosmology_template, verbose=verbose)
-            cosmo = Cosmology(
+    def get_path_template(self):
+        """Return the generated path_template."""
+        return self.path_template
+    
+    def _initialize_cosmology(self):
+        """Initialize cosmology based on the template."""
+        if self.cosmology_template == 'desifid':
+            self.cosmo = DESI()
+            print('Initialized cosmology: DESI fiducial')
+        else:
+            params = CosmologicalParameters(self.cosmology_template, verbose=self.verbose)
+            self.cosmo = Cosmology(
                 h=params.h,
                 Omega_cdm=params.Omega_m - params.Omega_b - params.Omega_nu_massive,
                 Omega_b=params.Omega_b,
                 sigma8=params.sigma_8,
                 n_s=params.n_s,
                 Omega_ncdm=params.Omega_nu_massive,
-                N_eff=3.046,
                 engine='class'
             )
-            self.cosmo = cosmo
+            
+    def load_pk_ell(self, bin_z):
+        """
+        Load precomputed Pk_ell for a given redshift bin.
 
-            # Initialize k and P(k)
-            self.kh = 10 ** np.linspace(np.log10(10**-4 / cosmo.h), np.log10(10**2), self.Nk)
-            pkz = cosmo.get_fourier(engine="class").pk_interpolator()
-            pk = pkz.to_1d(z=0)
-            self.Pk_wigg = pk(self.kh) / cosmo.h**3
+        Parameters:
+        - bin_z: Redshift bin number.
 
-            pknow = PowerSpectrumBAOFilter(pk, engine="wallish2018").smooth_pk_interpolator()
-            self.Pk_nowigg = pknow(self.kh) / cosmo.h**3
+        Returns:
+        - pk_ell_dict: Dictionary containing the precomputed Pk_ell.
+        """
+        if self.verbose:
+            print(f"{bin_z} - Attempting to load precomputed Pk_ell...")
 
-            self.k = self.kh * cosmo.h
-            np.savetxt(f"{self.path_template}/Pk_full.txt", np.column_stack([self.k, self.Pk_wigg, self.Pk_nowigg]))
+        pk_ell_dict = {}
+        try:
+            pk_ell_dict = {
+                f'Pk_{ell}_{component}': np.loadtxt(f"{self.path_template}/Pk_ell_{component}_bin{bin_z}.txt")[:, idx + 1]
+                for component in self.components
+                for idx, ell in enumerate(self.ells)
+            }
+        except FileNotFoundError as e:
+            print(f"Error: {e}")
+            print("Precomputed Pk_ell files do not exist. Please, compute them first.")
+            raise
 
-            self.Sigma_0, self.delta_Sigma_0 = self.compute_sigma_parameters()
+        return pk_ell_dict
+            
+    def load_xi_ell(self, bin_z):
+        """
+        Load precomputed xi_ell for a given redshift bin.
 
-            # Legendre polynomials
-            self.ells = [0, 2, 4]
-            self.mu_vector = np.linspace(-1, 1, Nmu)
-            self.legendre = {ell: scipy.special.eval_legendre(ell, self.mu_vector) for ell in self.ells}
+        Parameters:
+        - bin_z: Redshift bin number.
 
-            # Different bias components (squared, linear and independent)
-            self.components = ["bb", "bf", "ff"]
+        Returns:
+        - xi_ell_dict: Dictionary containing the precomputed xi_ell.
+        """
+        if self.verbose:
+            print(f"{bin_z} - Attempting to load precomputed xi_ell...")
+
+        xi_ell_dict = {}
+        try:
+            xi_ell_dict = {
+                f'xi_{ell}_{component}': np.loadtxt(f"{self.path_template}/xi_ell_{component}_bin{bin_z}.txt")[:, idx + 1]
+                for component in self.components
+                for idx, ell in enumerate(self.ells)
+            }
+        except FileNotFoundError as e:
+            print(f"Error: {e}")
+            print("Precomputed xi_ell files do not exist. Please, compute them first.")
+            raise
+
+        return xi_ell_dict
+    
+    def load_wtheta(self, bin_z):
+        """
+        Load precomputed wtheta data for a given redshift bin.
+
+        Parameters:
+        - bin_z: Redshift bin number.
+
+        Returns:
+        - wtheta_dict: Dictionary containing the wtheta.
+        """
+        if self.verbose:
+            print(f"{bin_z} - Attempting to load precomputed wtheta...")
+
+        wtheta_dict = {}
+        try:
+            wtheta_dict = {
+                f'wtheta_{component}': np.loadtxt(f"{self.path_template}/wtheta_{component}_bin{bin_z}.txt")
+                for component in self.components
+            }
+        except FileNotFoundError as e:
+            print(f"Error: {e}")
+            print("Precomputed wtheta files do not exist. Please, compute them first.")
+            raise
+
+        return wtheta_dict
+
+class PowerSpectrumMultipoles:
+    def __init__(self, template_initializer):
+        """
+        Initialize the PowerSpectrumMultipoles class.
+
+        Parameters:
+        - template_initializer: Instance of TemplateInitializer.
+        """
+        self.template_initializer = template_initializer  # TemplateInitializer instance
+        self.include_wiggles = self.template_initializer.include_wiggles
+        self.n_cpu = self.template_initializer.n_cpu
+        self.verbose = self.template_initializer.verbose
+        self.cosmo = self.template_initializer.cosmo
+        self.nz_instance = self.template_initializer.nz_instance
+        self.nbins = self.template_initializer.nbins
+        self.path_template = self.template_initializer.get_path_template()
+        self.k = self.template_initializer.k
+        self.kh = self.template_initializer.kh
+        self.Nk = self.template_initializer.Nk
+        self.mu_vector = self.template_initializer.mu_vector
+        self.ells = self.template_initializer.ells
+        self.components = self.template_initializer.components
+        self.legendre = self.template_initializer.legendre
+        
+        # Initialize power spectrum
+        self._initialize_power_spectrum()
+
+    def _initialize_power_spectrum(self):
+        """Initialize k and P(k) values."""
+        # Power spectrum with wiggles
+        pkz = self.cosmo.get_fourier(engine="class").pk_interpolator()
+        pk = pkz.to_1d(z=0)
+        self.Pk_wigg = pk(self.kh) / self.cosmo.h**3
+
+        # Power spectrum without wiggles
+        pknow = PowerSpectrumBAOFilter(pk, engine="wallish2018").smooth_pk_interpolator()
+        self.Pk_nowigg = pknow(self.kh) / self.cosmo.h**3
+        
+        np.savetxt(f"{self.path_template}/Pk_full.txt", np.column_stack([self.k, self.Pk_wigg, self.Pk_nowigg]))
+
+        self.Sigma_0, self.delta_Sigma_0 = self.compute_sigma_parameters()
 
     def compute_sigma_parameters(self):
         """Compute Sigma_0 and delta_Sigma_0 using the given cosmology."""
@@ -164,49 +291,30 @@ class PowerSpectrumMultipoles:
 
         print(f"{bin_z} - Pk_ell computed!")
         return pk_ell_dict
-
+    
 class CorrelationFunctionMultipoles:
-    def __init__(self, power_spectrum_multipoles, Nr):
+    def __init__(self, template_initializer):
         """
         Initialize the CorrelationFunctionMultipoles class.
 
         Parameters:
-        - power_spectrum_multipoles: Instance of PowerSpectrumMultipoles class.
-        - Nr: The number of radial bins.
+        - template_initializer: Instance of the TemplateInitializer class.
         """
-        self.path_template = power_spectrum_multipoles.path_template
-        self.Nr = Nr
-        self.k = power_spectrum_multipoles.k
-
-        self.r_12_vector = 10**np.linspace(np.log10(10**-2), np.log10(10**5), Nr)
+        self.template_initializer = template_initializer
+        self.path_template = self.template_initializer.path_template
+        self.k = self.template_initializer.k
+        self.nz_instance = self.template_initializer.nz_instance
+        self.cosmo = self.template_initializer.cosmo
+        self.mu_vector = self.template_initializer.mu_vector
+        self.legendre = self.template_initializer.legendre
+        self.ells = self.template_initializer.ells
+        self.components = self.template_initializer.components
+        self.n_cpu = self.template_initializer.n_cpu
+        self.Nr = self.template_initializer.Nr
+        self.r_12_vector = self.template_initializer.r_12_vector
         
-        self.nz_instance = power_spectrum_multipoles.nz_instance
-        self.cosmo = power_spectrum_multipoles.cosmo
-        self.mu_vector = power_spectrum_multipoles.mu_vector
-        self.legendre = power_spectrum_multipoles.legendre
-        self.ells = power_spectrum_multipoles.ells
-        self.components = power_spectrum_multipoles.components
-        self.n_cpu = power_spectrum_multipoles.n_cpu
-
-    def load_pk_ell_data(self, bin_z):
-        """
-        Load precomputed Pk_ell data from files for a given redshift bin.
-
-        Parameters:
-        - bin_z: Redshift bin number to load the data for.
+        self.verbose = self.template_initializer.verbose
         
-        Returns:
-        - pk_ell_dict: Dictionary containing the precomputed Pk_ell data.
-        """
-        print(f"{bin_z} - Loading precomputed Pk_ell data...")
-
-        pk_ell_dict = {
-            f'Pk_{ell}_{component}': np.loadtxt(f"{self.path_template}/Pk_ell_{component}_bin{bin_z}.txt")[:, idx + 1]
-            for component in self.components
-            for idx, ell in enumerate(self.ells)
-        }
-        return pk_ell_dict
-
     def compute_xi_multipoles(self, pk_ell_dict, r):
         """
         Compute the correlation function multipoles (xi_ell) for a given radial distance.
@@ -248,7 +356,7 @@ class CorrelationFunctionMultipoles:
         print("WARNING: xi_ell(r) will be computed for all r values in parallel!")
         print(f"{bin_z} - Computing xi_ell...")
 
-        pk_ell_dict = self.load_pk_ell_data(bin_z)
+        pk_ell_dict = self.template_initializer.load_pk_ell(bin_z)
 
         xi_ell_dict = {f'xi_{ell}_{component}': np.zeros(self.Nr) for component in self.components for ell in self.ells}
 
@@ -267,47 +375,29 @@ class CorrelationFunctionMultipoles:
 
         print(f"{bin_z} - xi_ell computed!")
         return xi_ell_dict
-
+    
 class WThetaCalculator:
-    def __init__(self, correlation_function_multipoles, Nz, Ntheta):
+    def __init__(self, template_initializer):
         """
         Initialize the WThetaCalculator class.
 
         Parameters:
-        - correlation_function_multipoles: Instance of the class containing correlation function multipoles (xi_ell).
-        - Nz: Number of redshift bins for the double redshift integral.
-        - Ntheta: Number of theta bins.
+        - template_initializer: Instance of the TemplateInitializer class.
         """
-        self.nz_instance = correlation_function_multipoles.nz_instance
-        self.cosmo = correlation_function_multipoles.cosmo
-        self.path_template = correlation_function_multipoles.path_template
-        self.r_12_vector = correlation_function_multipoles.r_12_vector
-        self.mu_vector = correlation_function_multipoles.mu_vector
-        self.legendre = correlation_function_multipoles.legendre
-        self.ells = correlation_function_multipoles.ells
-        self.components = correlation_function_multipoles.components
-        self.n_cpu = correlation_function_multipoles.n_cpu
-        self.Nz = Nz
-        self.theta = 10**np.linspace(np.log10(0.001), np.log10(179.5), Ntheta) * np.pi / 180
-
-    def load_xi_ell_data(self, bin_z):
-        """
-        Load precomputed xi_ell data (e.g., xi_0, xi_2, xi_4) for a given redshift bin.
-
-        Parameters:
-        - bin_z: Redshift bin number.
-
-        Returns:
-        - xi_ell_dict: Dictionary containing the xi_ell data for different multipoles.
-        """
-        print(f"{bin_z} - Loading precomputed xi_ell data...")
+        self.template_initializer = template_initializer
+        self.nz_instance = self.template_initializer.nz_instance
+        self.cosmo = self.template_initializer.cosmo
+        self.path_template = self.template_initializer.path_template
+        self.r_12_vector = self.template_initializer.r_12_vector
+        self.mu_vector = self.template_initializer.mu_vector
+        self.legendre = self.template_initializer.legendre
+        self.ells = self.template_initializer.ells
+        self.components = self.template_initializer.components
+        self.n_cpu = self.template_initializer.n_cpu
+        self.theta = self.template_initializer.theta
+        self.Nz = self.template_initializer.Nz
         
-        xi_ell_dict = {
-            f'xi_{ell}_{component}': np.loadtxt(f"{self.path_template}/xi_ell_{component}_bin{bin_z}.txt")[:, ell_idx + 1]
-            for component in self.components
-            for ell_idx, ell in enumerate(self.ells)
-        }
-        return xi_ell_dict
+        self.verbose = self.template_initializer.verbose
 
     def wtheta_calculator(self, bin_z, xi_ell_dict, theta):
         """
@@ -318,7 +408,7 @@ class WThetaCalculator:
         - theta: A single value of theta (angular separation) to calculate wtheta for.
 
         Returns:
-        - wtheta_dict: Dictionary containing the wtheta values for different correlation types (bb, bf, ff).
+        - wtheta_dict: Dictionary containing the wtheta.
         """
         z_values = self.nz_instance.z_vector(bin_z, Nz=self.Nz, verbose=False)
         D_values = self.cosmo.growth_factor(z_values)
@@ -386,7 +476,7 @@ class WThetaCalculator:
         print("WARNING: w(theta) will be computed for all theta values in parallel!")
         print(f"{bin_z} - Computing w(theta)...")
         
-        xi_ell_dict = self.load_xi_ell_data(bin_z)
+        xi_ell_dict = self.template_initializer.load_xi_ell(bin_z)
 
         with multiprocessing.Pool(self.n_cpu) as pool:
             w_dict = pool.map(partial(self.wtheta_calculator, bin_z, xi_ell_dict), self.theta)

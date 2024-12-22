@@ -8,8 +8,8 @@ import matplotlib.pyplot as plt
 plt.rcParams["text.usetex"] = True
 plt.rcParams["font.family"] = "serif"
 plt.rcParams["font.serif"] = "Times New Roman"
-from utils import RedshiftDistributions
-from utils_template import PowerSpectrumMultipoles
+from utils_data import RedshiftDistributions
+from utils_template import TemplateInitializer
 
 class WThetaModel:
     def __init__(self, include_wiggles, nz_flag, cosmology_template, n_broadband, galaxy_bias):
@@ -23,8 +23,7 @@ class WThetaModel:
             cosmology_template (str): Identifier for the cosmology template used.
             n_broadband (int): Number of broadband terms in the model.
             galaxy_bias (dict): Dictionary containing the linear galaxy bias for each 
-                redshift bin. Keys are the bin indices, and values are the galaxy bias 
-                values.
+                redshift bin.
         """
         self.include_wiggles = include_wiggles
         self.nz_flag = nz_flag
@@ -35,12 +34,11 @@ class WThetaModel:
         self.alpha_min = 0.8
         self.alpha_max = 1.2
         
-        self.path_template = PowerSpectrumMultipoles(
+        self.path_template = TemplateInitializer(
             include_wiggles=self.include_wiggles,
             nz_flag=self.nz_flag,
             cosmology_template=self.cosmology_template,
             verbose=False,
-            lazy_init=True
         ).path_template
         
         nz_instance = RedshiftDistributions(self.nz_flag)
@@ -151,26 +149,26 @@ class WThetaModel:
 
         return wtheta_template
 
-class PathBAOFit:
+class BAOFitInitializer:
     def __init__(self, include_wiggles, dataset, weight_type, nz_flag, cov_type, cosmology_template,
                  cosmology_covariance, delta_theta, theta_min, theta_max, n_broadband, bins_removed, verbose=True):
         """
-        Initialize the PathBAOFit class to generate a save directory path based on various parameters.
+        Initializes the BAOFitInitializer with parameters to generate the path for saving results.
 
-        Args:
-            include_wiggles (str): Indicates whether wiggles are included.
-            dataset (str): The dataset identifier (e.g., "COLA" or others).
-            weight_type (str): The weight type (e.g., "unweighted", "weighted").
-            nz_flag (str): The flag used for the n(z) configuration.
-            cov_type (str): The type of covariance.
-            cosmology_template (str): The cosmology template identifier.
-            cosmology_covariance (str): The cosmology covariance.
-            delta_theta (float): The delta theta value.
-            theta_min (float): The minimum theta value.
-            theta_max (float): The maximum theta value.
-            n_broadband (int): The number of broadband bins.
-            bins_removed (str): None, 012, 345, etc.
-            verbose (bool): Whether to print the save directory message. Default is True.
+        Parameters:
+        - include_wiggles: Whether to include BAO wiggles.
+        - dataset: Dataset identifier (e.g., "COLA", "DESY6").
+        - weight_type: Weight type (e.g., "unweighted", "weighted").
+        - nz_flag: Identifier for the n(z).
+        - cov_type: Type of covariance.
+        - cosmology_template: Identifier for the cosmology template.
+        - cosmology_covariance: Type of cosmology covariance.
+        - delta_theta: Delta theta value.
+        - theta_min: Minimum theta value.
+        - theta_max: Maximum theta value.
+        - n_broadband: Number of broadband bins.
+        - bins_removed: None, 012, 345, etc.
+        - verbose: Whether to print messages.
         """
         self.include_wiggles = include_wiggles
         self.dataset = dataset
@@ -183,60 +181,69 @@ class PathBAOFit:
         self.theta_min = theta_min
         self.theta_max = theta_max
         self.n_broadband = n_broadband
-        self.bins_removed = bins_removed
         self.verbose = verbose
-        
-        # We change the format of bins_removed to make it managable
-        nz_instance = RedshiftDistributions(self.nz_flag, verbose=False)
-        self.nbins = nz_instance.nbins
+
+        # Initialize Redshift Distribution
+        self.nz_instance = RedshiftDistributions(self.nz_flag, verbose=False)
+        self.nbins = self.nz_instance.nbins
+
+        # Map bins_removed to their corresponding combinations
+        self.bins_removed = self._map_bins_removed(bins_removed)
+
+        # Generate the path for saving results
+        self.path_baofit = self._generate_path_baofit()
+
+        # Create the directory if it does not exist
+        os.makedirs(self.path_baofit, exist_ok=True)
+        if verbose:
+            print(f"Saving output to: {self.path_baofit}")
+
+    def _map_bins_removed(self, bins_removed):
+        """Convert bins_removed string into corresponding bin combinations."""
         def generate_bin_mappings():
-            bin_mappings = {
-                'None': [],
-            }
+            bin_mappings = {'None': []}
             for i in range(1, self.nbins):
                 for combo in itertools.combinations(range(self.nbins), i):
                     key = ''.join(map(str, combo))
                     bin_mappings[key] = list(combo)
             return bin_mappings
 
-        bin_mappings = generate_bin_mappings() # all the different possibilities
-        self.bins_removed = bin_mappings[self.bins_removed]
+        bin_mappings = generate_bin_mappings()
+        return bin_mappings.get(bins_removed, bins_removed)
 
-    def __call__(self):
-        """
-        Generate the save directory path and print the message when the instance is called, 
-        if verbose is True.
-        """
+    def _generate_path_baofit(self):
+        """Generate the save path for the BAO fit results."""
         if self.dataset == 'COLA':
-            path_baofit = (
+            path = (
                 f"fit_results{self.include_wiggles}/{self.dataset}/nz{self.nz_flag}_cov{self.cov_type}_"
                 f"{self.cosmology_template}temp_{self.cosmology_covariance}cov_deltatheta{self.delta_theta}_"
                 f"thetamin{self.theta_min}_thetamax{self.theta_max}_{self.n_broadband}broadband_binsremoved{self.bins_removed}"
             )
         elif self.dataset == 'DESY6':
-            path_baofit = (
+            path = (
                 f"fit_results{self.include_wiggles}/{self.dataset}_{self.weight_type}/nz{self.nz_flag}_cov{self.cov_type}_"
                 f"{self.cosmology_template}temp_{self.cosmology_covariance}cov_deltatheta{self.delta_theta}_"
                 f"thetamin{self.theta_min}_thetamax{self.theta_max}_{self.n_broadband}broadband_binsremoved{self.bins_removed}"
             )
+        else:
+            raise ValueError(f"Unsupported dataset: {self.dataset}")
+        return path
 
-        os.makedirs(path_baofit, exist_ok=True)
-        if self.verbose:
-            print(f"Saving output to: {path_baofit}")
-
-        return path_baofit
+    def get_path_baofit(self):
+        """Return the generated path for saving BAO fit results."""
+        return self.path_baofit
 
 class BAOFit:
-    def __init__(self, wtheta_model, theta_data, wtheta_data, cov, path_baofit, n_cpu=None):
+    def __init__(self, baofit_initializer, wtheta_model, theta_data, wtheta_data, cov, n_cpu=None):
         """
         Initialize the BAO fit class.
 
         Args:
-            wtheta_model: An instance of the wtheta_model class.
+            baofit_initializer: Instance of the BAOFitInitializer class.
+            wtheta_model: Instance of the WThetaModel class.
             theta_data (array): Theta data for fitting.
             wtheta_data (list of arrays): Observed wtheta data for each bin.
             cov (array): Covariance matrix.
-            path_baofit (PathBAOFit): Instance of the PathBAOFit class.
             n_cpu: Number of CPUs for parallel processing (default: 20).
         """
         self.wtheta_model = wtheta_model
@@ -251,8 +258,8 @@ class BAOFit:
         self.n_cpu = n_cpu if n_cpu is not None else 20 # Just in case...
 
         # Retrieve path and bins_removed from PathBAOFit
-        self.path_baofit = path_baofit()
-        self.bins_removed = path_baofit.bins_removed
+        self.path_baofit = baofit_initializer.get_path_baofit()
+        self.bins_removed = baofit_initializer.bins_removed
 
         # Concatenate wtheta data
         self.wtheta_data_concatenated = np.concatenate([self.wtheta_data[bin_z] for bin_z in range(self.nbins)])
