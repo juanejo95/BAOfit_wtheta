@@ -13,8 +13,8 @@ class RedshiftDistributions:
         """
         # Default file paths
         default_paths = {
-            'fid': 'nz/nz_DNFpdf_shift_stretch_wrtclusteringz1-4_wrtVIPERS5-6_v2.txt',
-            'clusteringz': 'nz/nz_clusteringz.txt'
+            'fid': 'DESY6/nz/nz_DNFpdf_shift_stretch_wrtclusteringz1-4_wrtVIPERS5-6_v2.txt',
+            'clusteringz': 'DESY6/nz/nz_clusteringz.txt'
         }
         file_paths = file_paths or default_paths
         
@@ -82,7 +82,7 @@ class WThetaDataCovariance:
 
         for bin_z in range(self.nbins):
             if self.dataset == 'DESY6':
-                filename_wtheta = (f'wtheta_data_Yband/wtheta_data_bin{bin_z}_DeltaTheta{self.delta_theta}_'
+                filename_wtheta = (f'{self.dataset}/wtheta/wtheta_data_bin{bin_z}_DeltaTheta{self.delta_theta}_'
                                    f'weights{self.weight_type}_fstar.txt')
             
             theta, wtheta = np.loadtxt(filename_wtheta).T
@@ -116,17 +116,17 @@ class WThetaDataCovariance:
     def load_covariance_matrix(self, indices_theta_allbins_concatenated, theta_wtheta_data_concatenated):
         if self.cov_type == 'cosmolike_data':
             if self.cosmology_covariance == 'mice':
-                if self.delta_theta != 0.2:
+                if self.delta_theta not in [0.1, 0.2]:
                     print(f"No mice cosmolike covariance matrix for delta_theta={self.delta_theta}")
                     sys.exit()
                 cov = np.loadtxt(
-                    f"cov_cosmolike/cov_Y6bao_data_DeltaTheta{str(self.delta_theta).replace('.', 'p')}_mask_g_mice.txt"
+                    f"{self.dataset}/cov_cosmolike/cov_Y6bao_data_DeltaTheta{str(self.delta_theta).replace('.', 'p')}_mask_g_mice.txt"
                 )
             elif self.cosmology_covariance == 'planck':
                 cov = np.loadtxt(
-                    f"cov_cosmolike/cov_Y6bao_data_DeltaTheta{str(self.delta_theta).replace('.', 'p')}_mask_g_planck.txt"
+                    f"{self.dataset}/cov_cosmolike/cov_Y6bao_data_DeltaTheta{str(self.delta_theta).replace('.', 'p')}_mask_g_planck.txt"
                 )
-            theta_cov = np.loadtxt(f"cov_cosmolike/delta_theta_{self.delta_theta}_binning.txt")[:, 2] * np.pi / 180
+            theta_cov = np.loadtxt(f"{self.dataset}/cov_cosmolike/delta_theta_{self.delta_theta}_binning.txt")[:, 2] * np.pi / 180
 
         theta_cov_concatenated = np.concatenate([theta_cov] * self.nbins)
 

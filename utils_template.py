@@ -98,7 +98,7 @@ class TemplateInitializer:
         pk_ell_dict = {}
         try:
             pk_ell_dict = {
-                f'Pk_{ell}_{component}': np.loadtxt(f"{self.path_template}/Pk_ell_{component}_bin{bin_z}.txt")[:, idx + 1]
+                f'{ell}_{component}': np.loadtxt(f"{self.path_template}/Pk_ell_{component}_bin{bin_z}.txt")[:, idx + 1]
                 for component in self.components
                 for idx, ell in enumerate(self.ells)
             }
@@ -125,7 +125,7 @@ class TemplateInitializer:
         xi_ell_dict = {}
         try:
             xi_ell_dict = {
-                f'xi_{ell}_{component}': np.loadtxt(f"{self.path_template}/xi_ell_{component}_bin{bin_z}.txt")[:, idx + 1]
+                f'{ell}_{component}': np.loadtxt(f"{self.path_template}/xi_ell_{component}_bin{bin_z}.txt")[:, idx + 1]
                 for component in self.components
                 for idx, ell in enumerate(self.ells)
             }
@@ -152,7 +152,7 @@ class TemplateInitializer:
         wtheta_dict = {}
         try:
             wtheta_dict = {
-                f'wtheta_{component}': np.loadtxt(f"{self.path_template}/wtheta_{component}_bin{bin_z}.txt")
+                component: np.loadtxt(f"{self.path_template}/wtheta_{component}_bin{bin_z}.txt")
                 for component in self.components
             }
         except FileNotFoundError as e:
@@ -338,8 +338,8 @@ class CorrelationFunctionMultipoles:
         xi_dict = {}
         for ell, j_ell_x in zip(self.ells, [j_0_x, j_2_x, j_4_x]):
             for component in self.components:
-                xi_dict[f'xi_{ell}_{component}'] = np.trapz(
-                    j_ell_x * self.k**2 / (2 * np.pi**2) * pk_ell_dict[f'Pk_{ell}_{component}'], self.k
+                xi_dict[f'{ell}_{component}'] = np.trapz(
+                    j_ell_x * self.k**2 / (2 * np.pi**2) * pk_ell_dict[f'{ell}_{component}'], self.k
                 )
         return xi_dict
     
@@ -358,7 +358,7 @@ class CorrelationFunctionMultipoles:
 
         pk_ell_dict = self.template_initializer.load_pk_ell(bin_z)
 
-        xi_ell_dict = {f'xi_{ell}_{component}': np.zeros(self.Nr) for component in self.components for ell in self.ells}
+        xi_ell_dict = {f'{ell}_{component}': np.zeros(self.Nr) for component in self.components for ell in self.ells}
 
         with multiprocessing.Pool(self.n_cpu) as pool:
             xi_dict = pool.map(partial(self.compute_xi_multipoles, pk_ell_dict), self.r_12_vector)
@@ -370,7 +370,7 @@ class CorrelationFunctionMultipoles:
         for component in self.components:
             np.savetxt(
                 f"{self.path_template}/xi_ell_{component}_bin{bin_z}.txt",
-                np.column_stack([self.r_12_vector] + [xi_ell_dict[f'xi_{ell}_{component}'] for ell in self.ells])
+                np.column_stack([self.r_12_vector] + [xi_ell_dict[f'{ell}_{component}'] for ell in self.ells])
             )
 
         print(f"{bin_z} - xi_ell computed!")
@@ -415,7 +415,7 @@ class WThetaCalculator:
         phi_values = self.nz_instance.nz_interp(z_values, bin_z) * D_values
         r_values = self.cosmo.comoving_radial_distance(z_values) / self.cosmo.h
         
-        integrand = {f'integrand_{component}': np.zeros((len(z_values), len(z_values))) for component in self.components}
+        integrand = {component: np.zeros((len(z_values), len(z_values))) for component in self.components}
         
 #         for i in range(len(z_values)):
 #             for j in range(len(z_values)):
@@ -428,8 +428,8 @@ class WThetaCalculator:
 
 #                     try:
 #                         for component in self.components:
-#                             integrand[f'integrand_{component}'][i, j] = phi_values[i] * phi_values[j] * sum(
-#                                 np.interp(r_12, self.r_12_vector, xi_ell_dict[f'xi_{ell}_{component}']) * 
+#                             integrand[component][i, j] = phi_values[i] * phi_values[j] * sum(
+#                                 np.interp(r_12, self.r_12_vector, xi_ell_dict[f'{ell}_{component}']) * 
 #                                 np.interp(mu, self.mu_vector, self.legendre[ell])
 #                                 for ell in self.ells
 #                             )
@@ -446,7 +446,7 @@ class WThetaCalculator:
             xi_ell_dict_interp[component] = {}
             legendre_interp[component] = {}
             for ell in self.ells:
-                xi_ell_dict_interp[component][ell] = np.interp(r_12_values, self.r_12_vector, xi_ell_dict[f'xi_{ell}_{component}'])
+                xi_ell_dict_interp[component][ell] = np.interp(r_12_values, self.r_12_vector, xi_ell_dict[f'{ell}_{component}'])
                 legendre_interp[component][ell] = np.interp(mu_values, self.mu_vector, self.legendre[ell])
 
         for component in self.components:
@@ -454,14 +454,13 @@ class WThetaCalculator:
             for ell in self.ells:
                 integrand_sum += xi_ell_dict_interp[component][ell] * legendre_interp[component][ell]
 
-            integrand_key = f'integrand_{component}'
-            integrand[f'{integrand_key}'] = phi_values[:, None] * phi_values[None, :] * integrand_sum
+            integrand[component] = phi_values[:, None] * phi_values[None, :] * integrand_sum
 
         for key in integrand.keys():
             integrand[key] = np.triu(integrand[key]) + np.triu(integrand[key], 1).T
                 
         wtheta_dict = {
-            f'wtheta_{component}': np.trapz(np.trapz(integrand[f'integrand_{component}'], z_values), z_values)
+            component: np.trapz(np.trapz(integrand[component], z_values), z_values)
             for component in self.components
         }
         return wtheta_dict
@@ -482,7 +481,7 @@ class WThetaCalculator:
             w_dict = pool.map(partial(self.wtheta_calculator, bin_z, xi_ell_dict), self.theta)
 
         wtheta_dict = {
-            f'wtheta_{component}': np.array([w_dict[i][f'wtheta_{component}'] for i in range(len(self.theta))])
+            component: np.array([w_dict[i][component] for i in range(len(self.theta))])
             for component in self.components
         }
 
@@ -491,7 +490,7 @@ class WThetaCalculator:
                 f"{self.path_template}/wtheta_{component}_bin{bin_z}.txt",
                 np.column_stack([
                     self.theta,
-                    wtheta_dict[f'wtheta_{component}']
+                    wtheta_dict[component]
                 ])
             )
         
