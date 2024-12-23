@@ -2,42 +2,48 @@ import numpy as np
 import sys
 
 class RedshiftDistributions:
-    def __init__(self, nz_flag, file_paths=None, verbose=True):
+    def __init__(self, dataset, nz_flag, verbose=True):
         """
-        Initialize the redshift distributions based on the chosen flag.
+        Initialize the redshift distributions based on the chosen dataset and flag.
 
-        Args:
-            nz_flag (str): Flag to select the redshift distribution ('fid', 'clusteringz').
-            file_paths (dict, optional): Paths to the n(z) files. Default uses internal paths.
-            verbose (bool): Whether to print initialization messages.
+        Parameters:
+        - dataset (str): Dataset to use (e.g., 'DESY6').
+        - nz_flag (str): Flag to select the redshift distribution ('fid', 'clusteringz').
+        - verbose (bool): Whether to print initialization messages.
         """
-        # Default file paths
-        default_paths = {
-            'fid': 'DESY6/nz/nz_DNFpdf_shift_stretch_wrtclusteringz1-4_wrtVIPERS5-6_v2.txt',
-            'clusteringz': 'DESY6/nz/nz_clusteringz.txt'
-        }
-        file_paths = file_paths or default_paths
-        
-        if nz_flag not in file_paths:
-            raise ValueError(f"Unknown redshift distribution: {nz_flag}")
-        
+        self.dataset = dataset
+        self.nz_flag = nz_flag
+
+        # File paths based on dataset and nz_flag
+        if self.dataset == 'DESY6':
+            if self.nz_flag == 'fid':
+                file_path = f'{self.dataset}/nz/nz_DNFpdf_shift_stretch_wrtclusteringz1-4_wrtVIPERS5-6_v2.txt'
+                self.z_edges = {
+                    0: [0.6, 0.7], 1: [0.7, 0.8], 2: [0.8, 0.9], 3: [0.9, 1.0], 4: [1.0, 1.1], 5: [1.1, 1.2]
+                }
+            elif nz_flag == 'clusteringz':
+                file_path = f'{self.dataset}/nz/nz_clusteringz.txt'
+                self.z_edges = {
+                    0: [0.6, 0.7], 1: [0.7, 0.8], 2: [0.8, 0.9], 3: [0.9, 1.0]
+                }
+            else:
+                raise ValueError(f"Unknown nz_flag: {self.nz_flag} for dataset: {self.dataset}")
+        else:
+            raise ValueError(f"Unknown dataset: {self.dataset}")
+
+        # Load the redshift data
         try:
-            self.nz_data = np.loadtxt(file_paths[nz_flag])
+            self.nz_data = np.loadtxt(file_path)
         except OSError as e:
-            raise FileNotFoundError(f"Error loading n(z) file for {nz_flag}: {e}")
-        
-        self.z_edges = {
-            'fid': {0: [0.6, 0.7], 1: [0.7, 0.8], 2: [0.8, 0.9], 3: [0.9, 1.0], 4: [1.0, 1.1], 5: [1.1, 1.2]},
-            'clusteringz': {0: [0.6, 0.7], 1: [0.7, 0.8], 2: [0.8, 0.9], 3: [0.9, 1.0]}
-        }[nz_flag]
+            raise FileNotFoundError(f"Error loading n(z) file for {self.dataset} with nz_flag {self.nz_flag}: {e}")
 
         self.nbins = len(self.nz_data.T) - 1
         if verbose:
-            print(f"Using {nz_flag} n(z), which has {self.nbins} redshift bins")
+            print(f"Using {self.dataset} {self.nz_flag} n(z), which has {self.nbins} redshift bins")
 
     def __repr__(self):
         """String representation for debugging."""
-        return f"RedshiftDistributions(nbins={self.nbins}, edges={self.z_edges})"
+        return f"RedshiftDistributions(dataset={self.dataset}, nz_flag={self.nz_flag}, nbins={self.nbins}, edges={self.z_edges})"
 
     def nz_interp(self, z, bin_z):
         """Interpolate n(z) for a given redshift z and bin."""
@@ -47,17 +53,17 @@ class RedshiftDistributions:
         """Calculate the average redshift for a given bin."""
         return np.trapz(self.nz_data[:, 0] * self.nz_data[:, bin_z + 1], self.nz_data[:, 0])
 
-    def z_vector(self, bin_z, Nz=100, verbose=True):
+    def z_vector(self, bin_z, Nz=10**3, verbose=True):
         """Generate a vector of redshift values around the average redshift."""
         z_avg = self.z_average(bin_z)
         z_vector = np.linspace(z_avg - 0.25, z_avg + 0.25, Nz)
         z_values = self.nz_interp(z_vector, bin_z)
-        
+
         if verbose:
             print(f"[bin_z: {bin_z}, z_avg: {z_avg:.3f}, "
                   f"integral of the n(z) (total): {np.trapz(self.nz_data[:, bin_z + 1], self.nz_data[:, 0]):.3f}, "
                   f"integral of the n(z) (over the z range used): {np.trapz(z_values, z_vector):.3f}]")
-        
+
         return z_vector
 
 class WThetaDataCovariance:

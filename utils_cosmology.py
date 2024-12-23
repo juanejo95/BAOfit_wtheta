@@ -3,8 +3,8 @@ class CosmologicalParameters:
         """
         Initialize the cosmological parameters for a given cosmology.
         
-        Args:
-            cosmology (str): Name of the cosmology ('planck' or 'mice').
+        Parameters:
+        - cosmology (str): Name of the cosmology ('planck' or 'mice').
         """
         if cosmology == 'planck':
             self.H_0 = 67.6  # Hubble constant in km/s/Mpc

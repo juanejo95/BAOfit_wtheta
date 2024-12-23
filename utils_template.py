@@ -9,11 +9,12 @@ from utils_cosmology import CosmologicalParameters
 from utils_data import RedshiftDistributions
 
 class TemplateInitializer:
-    def __init__(self, include_wiggles, nz_flag, cosmology_template, Nk=2*10**5, Nmu=5*10**4, Nr=5*10**4, Nz=10**3, Ntheta=10**3, n_cpu=None, verbose=True):
+    def __init__(self, include_wiggles, dataset, nz_flag, cosmology_template, Nk=2*10**5, Nmu=5*10**4, Nr=5*10**4, Nz=10**3, Ntheta=10**3, n_cpu=None, verbose=True):
         """
-        Initializes the path_template based on input parameters.
+        Initializes the template calculator based on input parameters.
 
         Parameters:
+        - dataset (str): Dataset to use (e.g., 'DESY6').
         - include_wiggles: Whether to include BAO wiggles.
         - nz_flag: Identifier for the n(z).
         - cosmology_template: Identifier for the cosmology template.
@@ -21,6 +22,7 @@ class TemplateInitializer:
         - verbose: Whether to print messages.
         """
         self.include_wiggles = include_wiggles
+        self.dataset = dataset
         self.nz_flag = nz_flag
         self.cosmology_template = cosmology_template
         self.Nk = Nk
@@ -43,16 +45,16 @@ class TemplateInitializer:
         self.components = ["bb", "bf", "ff"]
 
         # Generate the path_template
-        self.path_template = f"wtheta_template{include_wiggles}/nz_{nz_flag}/wtheta_{cosmology_template}"
+        self.path_template = f"wtheta_template{self.include_wiggles}/{self.dataset}/nz_{self.nz_flag}/wtheta_{self.cosmology_template}"
         
         # Make sure the directory exists
         os.makedirs(self.path_template, exist_ok=True)
 
-        if verbose:
+        if self.verbose:
             print(f"Saving output to: {self.path_template}")
             
         # Redshift distribution
-        self.nz_instance = RedshiftDistributions(self.nz_flag, verbose=False)
+        self.nz_instance = RedshiftDistributions(self.dataset, self.nz_flag, verbose=False)
         self.nbins = self.nz_instance.nbins
         
         # Initialize cosmology
@@ -170,7 +172,7 @@ class PowerSpectrumMultipoles:
         Parameters:
         - template_initializer: Instance of TemplateInitializer.
         """
-        self.template_initializer = template_initializer  # TemplateInitializer instance
+        self.template_initializer = template_initializer
         self.include_wiggles = self.template_initializer.include_wiggles
         self.n_cpu = self.template_initializer.n_cpu
         self.verbose = self.template_initializer.verbose

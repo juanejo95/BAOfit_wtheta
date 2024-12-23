@@ -12,20 +12,21 @@ from utils_data import RedshiftDistributions
 from utils_template import TemplateInitializer
 
 class WThetaModel:
-    def __init__(self, include_wiggles, nz_flag, cosmology_template, n_broadband, galaxy_bias):
+    def __init__(self, include_wiggles, dataset, nz_flag, cosmology_template, n_broadband, galaxy_bias):
         """
         Initialize the WThetaModel class with parameters and settings for modeling 
         the angular correlation function, w(θ).
 
-        Args:
-            include_wiggles (str): Specifies whether the power spectrum includes BAO wiggles.
-            nz_flag (str): Configuration flag for the n(z) number density distribution.
-            cosmology_template (str): Identifier for the cosmology template used.
-            n_broadband (int): Number of broadband terms in the model.
-            galaxy_bias (dict): Dictionary containing the linear galaxy bias for each 
-                redshift bin.
+        Parameters:
+        - include_wiggles (str): Specifies whether the power spectrum includes BAO wiggles.
+        - dataset (str): Dataset to use (e.g., 'DESY6').
+        - nz_flag (str): Configuration flag for the n(z) number density distribution.
+        - cosmology_template (str): Identifier for the cosmology template used.
+        - n_broadband (int): Number of broadband terms in the model.
+        - galaxy_bias (dict): Dictionary containing the linear galaxy bias for each redshift bin.
         """
         self.include_wiggles = include_wiggles
+        self.dataset = dataset
         self.nz_flag = nz_flag
         self.cosmology_template = cosmology_template
         self.galaxy_bias = galaxy_bias
@@ -33,12 +34,13 @@ class WThetaModel:
         
         self.template_initializer = TemplateInitializer(
             include_wiggles=self.include_wiggles,
+            dataset=self.dataset,
             nz_flag=self.nz_flag,
             cosmology_template=self.cosmology_template,
             verbose=False,
         )
         
-        nz_instance = RedshiftDistributions(self.nz_flag)
+        nz_instance = RedshiftDistributions(self.dataset, self.nz_flag)
         self.nbins = nz_instance.nbins
 
         # Predefined values based on the given context
@@ -151,9 +153,10 @@ class BAOFitInitializer:
         
         self.alpha_min = 0.8
         self.alpha_max = 1.2
+        self.Nalpha = 10**4
         
         # Initialize Redshift Distribution
-        self.nz_instance = RedshiftDistributions(self.nz_flag, verbose=False)
+        self.nz_instance = RedshiftDistributions(self.dataset, self.nz_flag, verbose=False)
         self.nbins = self.nz_instance.nbins
 
         # Map bins_removed to their corresponding combinations
@@ -182,13 +185,7 @@ class BAOFitInitializer:
 
     def _generate_path_baofit(self):
         """Generate the save path for the BAO fit results."""
-        if self.dataset == 'COLA':
-            path = (
-                f"fit_results{self.include_wiggles}/{self.dataset}/nz{self.nz_flag}_cov{self.cov_type}_"
-                f"{self.cosmology_template}temp_{self.cosmology_covariance}cov_deltatheta{self.delta_theta}_"
-                f"thetamin{self.theta_min}_thetamax{self.theta_max}_{self.n_broadband}broadband_binsremoved{self.bins_removed}"
-            )
-        elif self.dataset == 'DESY6':
+        if self.dataset == 'DESY6':
             path = (
                 f"fit_results{self.include_wiggles}/{self.dataset}_{self.weight_type}/nz{self.nz_flag}_cov{self.cov_type}_"
                 f"{self.cosmology_template}temp_{self.cosmology_covariance}cov_deltatheta{self.delta_theta}_"
@@ -207,13 +204,13 @@ class BAOFit:
         """
         Initialize the BAO fit class.
 
-        Args:
-            baofit_initializer: Instance of the BAOFitInitializer class.
-            wtheta_model: Instance of the WThetaModel class.
-            theta_data (array): Theta data for fitting.
-            wtheta_data (list of arrays): Observed wtheta data for each bin.
-            cov (array): Covariance matrix.
-            n_cpu: Number of CPUs for parallel processing (default: 20).
+        Parameters:
+        - baofit_initializer: Instance of the BAOFitInitializer class.
+        - wtheta_model: Instance of the WThetaModel class.
+        - theta_data (array): Theta data for fitting.
+        - wtheta_data (list of arrays): Observed wtheta data for each bin.
+        - cov (array): Covariance matrix.
+        - n_cpu: Number of CPUs for parallel processing (default: 20).
         """
         self.wtheta_model = wtheta_model
         self.wtheta_template = wtheta_model.get_wtheta_template()
@@ -230,6 +227,7 @@ class BAOFit:
         self.bins_removed = baofit_initializer.bins_removed
         self.alpha_min = baofit_initializer.alpha_min
         self.alpha_max = baofit_initializer.alpha_max
+        self.Nalpha = baofit_initializer.Nalpha
 
         # Concatenate wtheta data
         self.wtheta_data_concatenated = np.concatenate([self.wtheta_data[bin_z] for bin_z in range(self.nbins)])
@@ -287,9 +285,8 @@ class BAOFit:
     def fit(self):
         """Perform the fitting procedure to find the best-fit alpha."""
         tol_minimize = 10**-7
-        n = 10**4
-        alpha_vector = np.linspace(self.alpha_min, self.alpha_max, n)
-        chi2_vector = np.zeros(n)
+        alpha_vector = np.linspace(self.alpha_min, self.alpha_max, self.Nalpha)
+        chi2_vector = np.zeros_like(alpha_vector)
 
         def compute_chi2(alpha):
             amplitude_params = minimize(self.regularized_least_squares, x0=np.ones(self.nbins), method='SLSQP',
@@ -315,7 +312,7 @@ class BAOFit:
                     alpha_down = alpha_vector[i]
                     break
 
-            for i in np.arange(best, n):
+            for i in np.arange(best, self.Nalpha):
                 if chi2_vector[i] < chi2_best + 1 and chi2_vector[i + 1] > chi2_best + 1:
                     alpha_up = alpha_vector[i]
                     break
