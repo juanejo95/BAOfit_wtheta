@@ -9,17 +9,18 @@ from utils_cosmology import CosmologicalParameters
 from utils_data import RedshiftDistributions
 
 class TemplateInitializer:
-    def __init__(self, include_wiggles, dataset, nz_flag, cosmology_template, Nk=2*10**5, Nmu=5*10**4, Nr=5*10**4, Nz=10**3, Ntheta=10**3, n_cpu=None, verbose=True):
+    def __init__(self, include_wiggles, dataset, nz_flag, cosmology_template, Nk=2*10**5, Nmu=5*10**4, Nr=5*10**4, Nz=10**3, Ntheta=10**3, use_multiprocessing=False, n_cpu=None, verbose=True):
         """
         Initializes the template calculator based on input parameters.
 
         Parameters:
         - dataset (str): Dataset to use (e.g., 'DESY6').
-        - include_wiggles: Whether to include BAO wiggles.
-        - nz_flag: Identifier for the n(z).
-        - cosmology_template: Identifier for the cosmology template.
-        - n_cpu: Number of CPUs for parallel processing (default: 20).
-        - verbose: Whether to print messages.
+        - include_wiggles (str): Whether to include BAO wiggles.
+        - nz_flag (str): Identifier for the n(z).
+        - cosmology_template (str): Identifier for the cosmology template.
+        - use_multiprocessing (bool): Whether to run the BAO fits using multiprocessing or not.
+        - n_cpu (int): Number of CPUs for parallel processing (default: 20).
+        - verbose (bool): Whether to print messages.
         """
         self.include_wiggles = include_wiggles
         self.dataset = dataset
@@ -30,7 +31,8 @@ class TemplateInitializer:
         self.Nr = Nr
         self.Nz = Nz
         self.Ntheta = Ntheta
-        self.n_cpu = n_cpu if n_cpu is not None else 20  # Default to 20 if not provided
+        self.use_multiprocessing = use_multiprocessing
+        self.n_cpu = n_cpu if n_cpu is not None else 20
         self.verbose = verbose
         
         self.mu_vector = np.linspace(-1, 1, self.Nmu)
@@ -56,6 +58,7 @@ class TemplateInitializer:
         # Redshift distribution
         self.nz_instance = RedshiftDistributions(self.dataset, self.nz_flag, verbose=False)
         self.nbins = self.nz_instance.nbins
+        self.z_edges = self.nz_instance.z_edges
         
         # Initialize cosmology
         self._initialize_cosmology()
@@ -174,6 +177,7 @@ class PowerSpectrumMultipoles:
         """
         self.template_initializer = template_initializer
         self.include_wiggles = self.template_initializer.include_wiggles
+        self.use_multiprocessing = self.template_initializer.use_multiprocessing
         self.n_cpu = self.template_initializer.n_cpu
         self.verbose = self.template_initializer.verbose
         self.cosmo = self.template_initializer.cosmo
@@ -275,13 +279,16 @@ class PowerSpectrumMultipoles:
         f = self.cosmo.growth_rate(z)
         Sigma_tot_vector = self.compute_sigma_tot_vector(z, f)
 
-        print("WARNING: P_ell(k) will be computed for all k values in parallel!")
+        print(f"WARNING: P_ell(k) will be computed for all k values in parallel using {self.n_cpu} CPUs!")
         print(f"{bin_z} - Computing Pk_ell...")
 
         pk_ell_dict = {f"Pk_{ell}_{component}": np.zeros(len(self.k)) for ell in self.ells for component in self.components}
 
-        with multiprocessing.Pool(self.n_cpu) as pool:
-            pk_dict = pool.map(partial(self.compute_pk_multipoles, bin_z, f, Sigma_tot_vector), range(len(self.k)))
+        if self.use_multiprocessing:
+            with multiprocessing.Pool(self.n_cpu) as pool:
+                pk_dict = pool.map(partial(self.compute_pk_multipoles, bin_z, f, Sigma_tot_vector), range(len(self.k)))
+        else:
+            raise NotImplementedError("Sequential computation of P(k) multipoles without multiprocessing is not implemented.")
 
         for i, result in enumerate(pk_dict):
             for key in result:
@@ -311,6 +318,7 @@ class CorrelationFunctionMultipoles:
         self.legendre = self.template_initializer.legendre
         self.ells = self.template_initializer.ells
         self.components = self.template_initializer.components
+        self.use_multiprocessing = self.template_initializer.use_multiprocessing
         self.n_cpu = self.template_initializer.n_cpu
         self.Nr = self.template_initializer.Nr
         self.r_12_vector = self.template_initializer.r_12_vector
@@ -355,15 +363,18 @@ class CorrelationFunctionMultipoles:
         Returns:
         - xi_ell_dict: Dictionary containing the xi_ell data.
         """
-        print("WARNING: xi_ell(r) will be computed for all r values in parallel!")
+        print(f"WARNING: xi_ell(r) will be computed for all r values in parallel using {self.n_cpu} CPUs!")
         print(f"{bin_z} - Computing xi_ell...")
 
         pk_ell_dict = self.template_initializer.load_pk_ell(bin_z)
 
         xi_ell_dict = {f'{ell}_{component}': np.zeros(self.Nr) for component in self.components for ell in self.ells}
 
-        with multiprocessing.Pool(self.n_cpu) as pool:
-            xi_dict = pool.map(partial(self.compute_xi_multipoles, pk_ell_dict), self.r_12_vector)
+        if self.use_multiprocessing:
+            with multiprocessing.Pool(self.n_cpu) as pool:
+                xi_dict = pool.map(partial(self.compute_xi_multipoles, pk_ell_dict), self.r_12_vector)
+        else:
+            raise NotImplementedError("Sequential computation of ξ(r) multipoles without multiprocessing is not implemented.")
 
         for i, result in enumerate(xi_dict):
             for key, value in result.items():
@@ -395,6 +406,7 @@ class WThetaCalculator:
         self.legendre = self.template_initializer.legendre
         self.ells = self.template_initializer.ells
         self.components = self.template_initializer.components
+        self.use_multiprocessing = self.template_initializer.use_multiprocessing
         self.n_cpu = self.template_initializer.n_cpu
         self.theta = self.template_initializer.theta
         self.Nz = self.template_initializer.Nz
@@ -469,18 +481,21 @@ class WThetaCalculator:
 
     def compute_wtheta(self, bin_z):
         """
-        Compute and save wtheta for a given bin_z using multiprocessing.
+        Compute and save wtheta for a given bin_z.
 
         Parameters:
         - bin_z: Redshift bin number.
         """
-        print("WARNING: w(theta) will be computed for all theta values in parallel!")
         print(f"{bin_z} - Computing w(theta)...")
         
         xi_ell_dict = self.template_initializer.load_xi_ell(bin_z)
 
-        with multiprocessing.Pool(self.n_cpu) as pool:
-            w_dict = pool.map(partial(self.wtheta_calculator, bin_z, xi_ell_dict), self.theta)
+        if self.use_multiprocessing:
+            print(f"WARNING: w(theta) will be computed for all theta values in parallel using {self.n_cpu} CPUs!")
+            with multiprocessing.Pool(self.n_cpu) as pool:
+                w_dict = pool.map(partial(self.wtheta_calculator, bin_z, xi_ell_dict), self.theta)
+        else:
+            raise NotImplementedError("Sequential computation of w(theta) without multiprocessing is not implemented.")
 
         wtheta_dict = {
             component: np.array([w_dict[i][component] for i in range(len(self.theta))])

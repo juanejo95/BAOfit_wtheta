@@ -39,9 +39,8 @@ class WThetaModel:
             cosmology_template=self.cosmology_template,
             verbose=False,
         )
-        
-        nz_instance = RedshiftDistributions(self.dataset, self.nz_flag)
-        self.nbins = nz_instance.nbins
+        self.nbins = self.template_initializer.nbins
+        self.z_edges = self.template_initializer.z_edges
 
         # Predefined values based on the given context
         self.names_params = np.array([
@@ -119,7 +118,8 @@ class WThetaModel:
 
 class BAOFitInitializer:
     def __init__(self, include_wiggles, dataset, weight_type, nz_flag, cov_type, cosmology_template,
-                 cosmology_covariance, delta_theta, theta_min, theta_max, n_broadband, bins_removed, verbose=True):
+                 cosmology_covariance, delta_theta, theta_min, theta_max, n_broadband, bins_removed, 
+                 alpha_min=0.8, alpha_max=1.2, verbose=True):
         """
         Initializes the BAOFitInitializer with parameters to generate the path for saving results.
 
@@ -149,19 +149,13 @@ class BAOFitInitializer:
         self.theta_min = theta_min
         self.theta_max = theta_max
         self.n_broadband = n_broadband
+        self.bins_removed = bins_removed
         self.verbose = verbose
         
-        self.alpha_min = 0.8
-        self.alpha_max = 1.2
-        self.Nalpha = 10**4
+        self.alpha_min = alpha_min
+        self.alpha_max = alpha_max
+        self.Nalpha = 10**3
         
-        # Initialize Redshift Distribution
-        self.nz_instance = RedshiftDistributions(self.dataset, self.nz_flag, verbose=False)
-        self.nbins = self.nz_instance.nbins
-
-        # Map bins_removed to their corresponding combinations
-        self.bins_removed = self._map_bins_removed(bins_removed)
-
         # Generate the path for saving results
         self.path_baofit = self._generate_path_baofit()
 
@@ -170,26 +164,14 @@ class BAOFitInitializer:
         if verbose:
             print(f"Saving output to: {self.path_baofit}")
 
-    def _map_bins_removed(self, bins_removed):
-        """Convert bins_removed string into corresponding bin combinations."""
-        def generate_bin_mappings():
-            bin_mappings = {'None': []}
-            for i in range(1, self.nbins):
-                for combo in itertools.combinations(range(self.nbins), i):
-                    key = ''.join(map(str, combo))
-                    bin_mappings[key] = list(combo)
-            return bin_mappings
-
-        bin_mappings = generate_bin_mappings()
-        return bin_mappings.get(bins_removed, bins_removed)
-
     def _generate_path_baofit(self):
         """Generate the save path for the BAO fit results."""
         if self.dataset == 'DESY6':
             path = (
                 f"fit_results{self.include_wiggles}/{self.dataset}_{self.weight_type}/nz{self.nz_flag}_cov{self.cov_type}_"
                 f"{self.cosmology_template}temp_{self.cosmology_covariance}cov_deltatheta{self.delta_theta}_"
-                f"thetamin{self.theta_min}_thetamax{self.theta_max}_{self.n_broadband}broadband_binsremoved{self.bins_removed}"
+                f"thetamin{self.theta_min}_thetamax{self.theta_max}_{self.n_broadband}broadband_binsremoved{self.bins_removed}_"
+                f"alphamin{self.alpha_min}_alphamax{self.alpha_max}"
             )
         else:
             raise ValueError(f"Unsupported dataset: {self.dataset}")
@@ -200,7 +182,7 @@ class BAOFitInitializer:
         return self.path_baofit
 
 class BAOFit:
-    def __init__(self, baofit_initializer, wtheta_model, theta_data, wtheta_data, cov, n_cpu=None):
+    def __init__(self, baofit_initializer, wtheta_model, theta_data, wtheta_data, cov, close_fig=True, use_multiprocessing=False, n_cpu=None):
         """
         Initialize the BAO fit class.
 
@@ -210,18 +192,25 @@ class BAOFit:
         - theta_data (array): Theta data for fitting.
         - wtheta_data (list of arrays): Observed wtheta data for each bin.
         - cov (array): Covariance matrix.
-        - n_cpu: Number of CPUs for parallel processing (default: 20).
+        - close_fig (bool): Whether to close the resulting figures or nnot.
+        - use_multiprocessing (bool): Whether to run the BAO fits using multiprocessing or not.
+        - n_cpu (int): Number of CPUs for parallel processing (default: 20).
         """
         self.wtheta_model = wtheta_model
         self.wtheta_template = wtheta_model.get_wtheta_template()
+        self.z_edges = wtheta_model.z_edges
         self.theta_data = theta_data
         self.wtheta_data = wtheta_data
         self.cov = cov
         self.inv_cov = np.linalg.inv(cov)  # Compute the inverse covariance matrix
         self.n_broadband = wtheta_model.n_broadband
         self.nbins = wtheta_model.nbins
-        # self.n_cpu = n_cpu if n_cpu is not None else multiprocessing.cpu_count()
-        self.n_cpu = n_cpu if n_cpu is not None else 20 # Just in case...
+        self.close_fig = close_fig
+        self.use_multiprocessing = use_multiprocessing
+        self.n_cpu = n_cpu if n_cpu is not None else 20
+        
+        if self.use_multiprocessing:
+            print(f"WARNING: The BAO fit will be run in parallel using {self.n_cpu} CPUs!")
         
         self.path_baofit = baofit_initializer.get_path_baofit()
         self.bins_removed = baofit_initializer.bins_removed
@@ -293,9 +282,12 @@ class BAOFit:
                                         bounds=[(0, None)] * self.nbins, tol=tol_minimize, args=(alpha,))
             chi2_value = self.regularized_least_squares(amplitude_params.x, alpha)
             return chi2_value
-
-        with Pool(self.n_cpu) as pool: # using multiprocessing with pathos...
-            chi2_vector = np.array(pool.map(compute_chi2, alpha_vector))
+        
+        if self.use_multiprocessing:
+            with Pool(self.n_cpu) as pool: # using multiprocessing with pathos...
+                chi2_vector = np.array(pool.map(compute_chi2, alpha_vector))
+        else:
+            chi2_vector = np.array([compute_chi2(alpha) for alpha in alpha_vector])
             
         best = np.argmin(chi2_vector)
         alpha_best = alpha_vector[best]
@@ -348,12 +340,14 @@ class BAOFit:
                     100 * (theta_data_interp * 180 / np.pi) ** 2 * wtheta_fit_best[bin_z * len(theta_data_interp):(bin_z + 1) * len(theta_data_interp)]
                 )
                 ax.set_ylabel(r'$10^2 \times \theta^2w(\theta)$', fontsize=13)
-                ax.set_title(f'Bin {bin_z}', fontsize=14)
+                z_edge = self.z_edges[bin_z]
+                ax.text(0.13, 0.1, f'{z_edge[0]} $< z <$ {z_edge[1]}', ha='center', va='center', transform=ax.transAxes, fontsize=18)
                 if bin_z == self.nbins - 1:
                     ax.set_xlabel(r'$\theta$ (deg)', fontsize=13)
             plt.tight_layout()
             plt.savefig(self.path_baofit + '/wtheta_data_bestfit.png', bbox_inches='tight')
-            plt.close(fig)
+            if self.close_fig:
+                plt.close(fig)
 
             # Save the w(theta)
             np.savetxt(
@@ -380,7 +374,8 @@ class BAOFit:
             ax.tick_params(axis='both', which='major', labelsize=12)
             ax.legend(loc='lower right', fontsize=12)
             plt.savefig(self.path_baofit + '/chi2_profile.png', bbox_inches='tight', dpi=300)
-            plt.close(fig)
+            if self.close_fig:
+                plt.close(fig)
 
         else:
             print('The fit does not have the 1-sigma region between ' + str(self.alpha_min) + ' and ' + str(self.alpha_max))
@@ -400,7 +395,8 @@ class BAOFit:
             ax.tick_params(axis='both', which='major', labelsize=12)
             ax.legend(loc='lower right', fontsize=12)
             plt.savefig(self.path_baofit + '/chi2_profile_bad.png', bbox_inches='tight', dpi=300)
-            plt.close(fig)
+            if self.close_fig:
+                plt.close(fig)
 
         # Calculate degrees of freedom (dof)
         dof = len(self.wtheta_data_concatenated) - self.n_params_true
