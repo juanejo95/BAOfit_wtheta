@@ -56,9 +56,9 @@ class TemplateInitializer:
             print(f"Saving output to: {self.path_template}")
             
         # Redshift distribution
-        self.nz_instance = RedshiftDistributions(self.dataset, self.nz_flag, verbose=False)
-        self.nbins = self.nz_instance.nbins
-        self.z_edges = self.nz_instance.z_edges
+        self.redshift_distributions = RedshiftDistributions(self.dataset, self.nz_flag, verbose=False)
+        self.nbins = self.redshift_distributions.nbins
+        self.z_edges = self.redshift_distributions.z_edges
         
         # Initialize cosmology
         self._initialize_cosmology()
@@ -181,7 +181,7 @@ class PowerSpectrumMultipoles:
         self.n_cpu = self.template_initializer.n_cpu
         self.verbose = self.template_initializer.verbose
         self.cosmo = self.template_initializer.cosmo
-        self.nz_instance = self.template_initializer.nz_instance
+        self.redshift_distributions = self.template_initializer.redshift_distributions
         self.nbins = self.template_initializer.nbins
         self.path_template = self.template_initializer.get_path_template()
         self.k = self.template_initializer.k
@@ -275,7 +275,7 @@ class PowerSpectrumMultipoles:
 
     def compute_pk_ell(self, bin_z):
         """Main method to compute the power spectrum multipoles for a given bin."""
-        z = self.nz_instance.z_average(bin_z)
+        z = self.redshift_distributions.z_average(bin_z)
         f = self.cosmo.growth_rate(z)
         Sigma_tot_vector = self.compute_sigma_tot_vector(z, f)
 
@@ -312,7 +312,7 @@ class CorrelationFunctionMultipoles:
         self.template_initializer = template_initializer
         self.path_template = self.template_initializer.path_template
         self.k = self.template_initializer.k
-        self.nz_instance = self.template_initializer.nz_instance
+        self.redshift_distributions = self.template_initializer.redshift_distributions
         self.cosmo = self.template_initializer.cosmo
         self.mu_vector = self.template_initializer.mu_vector
         self.legendre = self.template_initializer.legendre
@@ -398,7 +398,7 @@ class WThetaCalculator:
         - template_initializer: Instance of the TemplateInitializer class.
         """
         self.template_initializer = template_initializer
-        self.nz_instance = self.template_initializer.nz_instance
+        self.redshift_distributions = self.template_initializer.redshift_distributions
         self.cosmo = self.template_initializer.cosmo
         self.path_template = self.template_initializer.path_template
         self.r_12_vector = self.template_initializer.r_12_vector
@@ -424,9 +424,9 @@ class WThetaCalculator:
         Returns:
         - wtheta_dict: Dictionary containing the wtheta.
         """
-        z_values = self.nz_instance.z_vector(bin_z, Nz=self.Nz, verbose=False)
+        z_values = self.redshift_distributions.z_vector(bin_z, Nz=self.Nz, verbose=False)
         D_values = self.cosmo.growth_factor(z_values)
-        phi_values = self.nz_instance.nz_interp(z_values, bin_z) * D_values
+        phi_values = self.redshift_distributions.nz_interp(z_values, bin_z) * D_values
         r_values = self.cosmo.comoving_radial_distance(z_values) / self.cosmo.h
         
         integrand = {component: np.zeros((len(z_values), len(z_values))) for component in self.components}

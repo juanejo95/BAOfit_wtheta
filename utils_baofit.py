@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 plt.rcParams["text.usetex"] = True
 plt.rcParams["font.family"] = "serif"
 plt.rcParams["font.serif"] = "Times New Roman"
-from utils_data import RedshiftDistributions
 from utils_template import TemplateInitializer
 
 class WThetaModel:
@@ -66,12 +65,12 @@ class WThetaModel:
         """Generate index array based on the number of broadband bins."""
         indices_params_bb = np.arange(1, 1 + (self.n_broadband + 1))  # Only nuisance parameters
         indices_params = np.concatenate([[0], indices_params_bb])  # Including alpha
-        for k in range(1, self.nbins):
-            indices_params = np.concatenate([indices_params, indices_params_bb + k * (1 + self.n_broadband_max)])
+        for bin_z in range(1, self.nbins):
+            indices_params = np.concatenate([indices_params, indices_params_bb + bin_z * (1 + self.n_broadband_max)])
         return indices_params
 
     def _load_and_interpolate_wtheta(self):
-        """Load and interpolate the wtheta theoretical data."""
+        """Load and interpolate the theoretical w(θ)."""
         wtheta_th_interp = {}
         for bin_z in range(self.nbins):
             # Load the theoretical wtheta for each bin
@@ -96,14 +95,14 @@ class WThetaModel:
     def wtheta_template_raw(self, theta, alpha, *params):
         """Theoretical template calculation."""
         wtheta_template = np.concatenate([
-            params[(1 + self.n_broadband_max) * i] * self.wtheta_th_interp[i](alpha * theta) +  # A
-            params[(1 + self.n_broadband_max) * i + 1] +  # B
-            params[(1 + self.n_broadband_max) * i + 2] / theta +  # C
-            params[(1 + self.n_broadband_max) * i + 3] / theta**2 +  # D
-            params[(1 + self.n_broadband_max) * i + 4] * theta +  # E
-            params[(1 + self.n_broadband_max) * i + 5] * theta**2 +  # F
-            params[(1 + self.n_broadband_max) * i + 6] * theta**3  # G
-            for i in range(self.nbins)
+            params[(1 + self.n_broadband_max) * bin_z] * self.wtheta_th_interp[bin_z](alpha * theta) +  # A
+            params[(1 + self.n_broadband_max) * bin_z + 1] +  # B
+            params[(1 + self.n_broadband_max) * bin_z + 2] / theta +  # C
+            params[(1 + self.n_broadband_max) * bin_z + 3] / theta**2 +  # D
+            params[(1 + self.n_broadband_max) * bin_z + 4] * theta +  # E
+            params[(1 + self.n_broadband_max) * bin_z + 5] * theta**2 +  # F
+            params[(1 + self.n_broadband_max) * bin_z + 6] * theta**3  # G
+            for bin_z in range(self.nbins)
         ])
         return wtheta_template
 
@@ -121,7 +120,7 @@ class BAOFitInitializer:
                  cosmology_covariance, delta_theta, theta_min, theta_max, n_broadband, bins_removed, 
                  alpha_min=0.8, alpha_max=1.2, verbose=True):
         """
-        Initializes the BAOFitInitializer with parameters to generate the path for saving results.
+        Initializes the BAOFitInitializer class.
 
         Parameters:
         - include_wiggles: Whether to include BAO wiggles.
@@ -184,7 +183,7 @@ class BAOFitInitializer:
 class BAOFit:
     def __init__(self, baofit_initializer, wtheta_model, theta_data, wtheta_data, cov, close_fig=True, use_multiprocessing=False, n_cpu=None):
         """
-        Initialize the BAO fit class.
+        Initialize the BAOFit class.
 
         Parameters:
         - baofit_initializer: Instance of the BAOFitInitializer class.
@@ -226,7 +225,7 @@ class BAOFit:
         self.n_params_true = len(self.wtheta_model.names_params) - (1 + self.n_broadband) * len(self.bins_removed)
 
         # Precompute positions of amplitude and broadband parameters
-        self.pos_amplitude = np.array([1 + i * (self.n_broadband + 1) for i in range(self.nbins)])
+        self.pos_amplitude = np.array([1 + bin_z * (self.n_broadband + 1) for bin_z in range(self.nbins)])
         self.pos_broadband = np.delete(np.arange(self.n_params), np.concatenate(([0], self.pos_amplitude)))
 
         # Construct the design matrix
@@ -241,11 +240,11 @@ class BAOFit:
     
     def _construct_design_matrix(self):
         """Construct the model matrix."""
-        for j in np.arange(0, self.nbins * self.n_broadband):
+        for i in np.arange(0, self.nbins * self.n_broadband):
             fit_params = np.zeros(self.n_params)
             fit_params[0] = 1
-            fit_params[self.pos_broadband[j]] = 1
-            self.design_matrix[:, j] = self.wtheta_template(self.theta_data, *fit_params)
+            fit_params[self.pos_broadband[i]] = 1
+            self.design_matrix[:, i] = self.wtheta_template(self.theta_data, *fit_params)
 
     def least_squares(self, params):
         """Least squares function to minimize."""
@@ -339,6 +338,10 @@ class BAOFit:
                     theta_data_interp * 180 / np.pi, 
                     100 * (theta_data_interp * 180 / np.pi) ** 2 * wtheta_fit_best[bin_z * len(theta_data_interp):(bin_z + 1) * len(theta_data_interp)]
                 )
+                ax.plot(
+                    theta_data_interp * 180 / np.pi, 
+                    100 * (theta_data_interp * 180 / np.pi) ** 2 * self.wtheta_model.wtheta_th_interp[bin_z](theta_data_interp)
+                )
                 ax.set_ylabel(r'$10^2 \times \theta^2w(\theta)$', fontsize=13)
                 z_edge = self.z_edges[bin_z]
                 ax.text(0.13, 0.1, f'{z_edge[0]} $< z <$ {z_edge[1]}', ha='center', va='center', transform=ax.transAxes, fontsize=18)
@@ -348,7 +351,7 @@ class BAOFit:
             plt.savefig(self.path_baofit + '/wtheta_data_bestfit.png', bbox_inches='tight')
             if self.close_fig:
                 plt.close(fig)
-
+                
             # Save the w(theta)
             np.savetxt(
                 self.path_baofit + '/wtheta_data_bestfit.txt',

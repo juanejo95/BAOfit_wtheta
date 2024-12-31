@@ -4,7 +4,7 @@ import sys
 class RedshiftDistributions:
     def __init__(self, dataset, nz_flag, verbose=True):
         """
-        Initialize the redshift distributions based on the chosen dataset and flag.
+        Initialize the redshift distributions.
 
         Parameters:
         - dataset (str): Dataset to use (e.g., 'DESY6').
@@ -67,10 +67,19 @@ class RedshiftDistributions:
         return z_vector
 
 class WThetaDataCovariance:
-    def __init__(self, dataset, weight_type, cov_type, cosmology_covariance, delta_theta, theta_min, theta_max, 
-                 bins_removed, diag_only, remove_crosscov, nbins):
+    def __init__(self, dataset, weight_type, nz_flag, cov_type, cosmology_covariance, delta_theta, 
+                 theta_min, theta_max, bins_removed, diag_only, remove_crosscov):
+        """
+        Initialize the WThetaDataCovariance class, which returns the data w(θ) and the covariance.
+
+        Parameters:
+        - dataset (str): Dataset to use (e.g., 'DESY6').
+        - nz_flag (str): Flag to select the redshift distribution ('fid', 'clusteringz').
+        - verbose (bool): Whether to print initialization messages.
+        """
         self.dataset = dataset
         self.weight_type = weight_type
+        self.nz_flag = nz_flag
         self.cov_type = cov_type
         self.cosmology_covariance = cosmology_covariance
         self.delta_theta = delta_theta
@@ -79,7 +88,10 @@ class WThetaDataCovariance:
         self.bins_removed = bins_removed
         self.diag_only = diag_only
         self.remove_crosscov = remove_crosscov
-        self.nbins = nbins
+        
+        # Redshift distribution
+        self.redshift_distributions = RedshiftDistributions(self.dataset, self.nz_flag, verbose=False)
+        self.nbins = self.redshift_distributions.nbins
 
     def load_wtheta_data(self):
         indices_theta_allbins = {}
