@@ -10,11 +10,73 @@ plt.rcParams["font.family"] = "serif"
 plt.rcParams["font.serif"] = "Times New Roman"
 from utils_template import TemplateInitializer
 
+class WThetaModelGalaxyBias:
+    def __init__(self, include_wiggles, dataset, nz_flag, cosmology_template):
+        """
+        Initialize the WThetaModelGalaxyBias class.
+
+        Parameters:
+        - include_wiggles (str): Specifies whether the power spectrum includes BAO wiggles.
+        - dataset (str): Dataset to use (e.g., 'DESY6').
+        - nz_flag (str): Configuration flag for the n(z) number density distribution.
+        - cosmology_template (str): Identifier for the cosmology template used.
+        """
+        self.include_wiggles = include_wiggles
+        self.dataset = dataset
+        self.nz_flag = nz_flag
+        self.cosmology_template = cosmology_template
+
+        # Initialize template data
+        self.template_initializer = TemplateInitializer(
+            include_wiggles=self.include_wiggles,
+            dataset=self.dataset,
+            nz_flag=self.nz_flag,
+            cosmology_template=self.cosmology_template,
+            verbose=False,
+        )
+        self.nbins = self.template_initializer.nbins
+        self.z_edges = self.template_initializer.z_edges
+
+        # Load and interpolate the theoretical wtheta
+        self.wtheta_components_interp = self._load_and_interpolate_wtheta_components()
+
+    def _load_and_interpolate_wtheta_components(self):
+        """Load and interpolate the theoretical components of w(θ) (bb, bf, ff)."""
+        components_interp = {}
+        for bin_z in range(self.nbins):
+            # Load the theoretical wtheta for each bin
+            wtheta_dict = self.template_initializer.load_wtheta(bin_z)
+            theta = wtheta_dict['bb'][:, 0]
+            components_interp[bin_z] = {
+                'theta': theta,
+                'bb': interp1d(theta, wtheta_dict['bb'][:, 1], kind='cubic'),
+                'bf': interp1d(theta, wtheta_dict['bf'][:, 1], kind='cubic'),
+                'ff': interp1d(theta, wtheta_dict['ff'][:, 1], kind='cubic'),
+            }
+        return components_interp
+
+    def get_wtheta_function(self):
+        """Return a function that computes the theoretical w(θ) for each bin and concatenates them."""
+        def wtheta(theta, *galaxy_bias):
+            wtheta_concatenated = []
+            for bin_z in range(self.nbins):
+                interp = self.wtheta_components_interp[bin_z]
+                b = galaxy_bias[bin_z]
+                wtheta_bin = (
+                    b**2 * interp['bb'](theta) +
+                    b * interp['bf'](theta) +
+                    interp['ff'](theta)
+                )
+                wtheta_concatenated.append(wtheta_bin)
+
+            return np.concatenate(wtheta_concatenated)
+
+        return wtheta
+
 class WThetaModel:
     def __init__(self, include_wiggles, dataset, nz_flag, cosmology_template, n_broadband, galaxy_bias):
         """
-        Initialize the WThetaModel class with parameters and settings for modeling 
-        the angular correlation function, w(θ).
+        Initialize the WThetaModel class.
 
         Parameters:
         - include_wiggles (str): Specifies whether the power spectrum includes BAO wiggles.

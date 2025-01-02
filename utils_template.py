@@ -74,7 +74,8 @@ class TemplateInitializer:
         """Initialize cosmology based on the template."""
         if self.cosmology_template == 'desifid':
             self.cosmo = DESI()
-            print('Initialized cosmology: DESI fiducial')
+            if self.verbose:
+                print('Initialized cosmology: DESI fiducial')
         else:
             params = CosmologicalParameters(self.cosmology_template, verbose=self.verbose)
             self.cosmo = Cosmology(
