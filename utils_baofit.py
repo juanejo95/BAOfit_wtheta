@@ -16,10 +16,10 @@ class WThetaModelGalaxyBias:
         Initialize the WThetaModelGalaxyBias class.
 
         Parameters:
-        - include_wiggles (str): Specifies whether the power spectrum includes BAO wiggles.
-        - dataset (str): Dataset to use (e.g., 'DESY6').
-        - nz_flag (str): Configuration flag for the n(z) number density distribution.
-        - cosmology_template (str): Identifier for the cosmology template used.
+        - include_wiggles (str): Whether to include BAO wiggles.
+        - dataset (str): Dataset identifier (e.g., "DESY6").
+        - nz_flag (str): Identifier for the n(z).
+        - cosmology_template (str): Cosmology for the template.
         """
         self.include_wiggles = include_wiggles
         self.dataset = dataset
@@ -41,7 +41,7 @@ class WThetaModelGalaxyBias:
         self.wtheta_components_interp = self._load_and_interpolate_wtheta_components()
 
     def _load_and_interpolate_wtheta_components(self):
-        """Load and interpolate the theoretical components of w(θ) (bb, bf, ff)."""
+        """Load and interpolate the theoretical components of w(theta) (bb, bf, ff)."""
         components_interp = {}
         for bin_z in range(self.nbins):
             # Load the theoretical wtheta for each bin
@@ -56,7 +56,7 @@ class WThetaModelGalaxyBias:
         return components_interp
 
     def get_wtheta_function(self):
-        """Return a function that computes the theoretical w(θ) for each bin and concatenates them."""
+        """Return a function that computes the theoretical w(theta) for each bin and concatenates them."""
         def wtheta(theta, *galaxy_bias):
             wtheta_concatenated = []
             for bin_z in range(self.nbins):
@@ -79,11 +79,11 @@ class WThetaModel:
         Initialize the WThetaModel class.
 
         Parameters:
-        - include_wiggles (str): Specifies whether the power spectrum includes BAO wiggles.
-        - dataset (str): Dataset to use (e.g., 'DESY6').
-        - nz_flag (str): Configuration flag for the n(z) number density distribution.
-        - cosmology_template (str): Identifier for the cosmology template used.
-        - n_broadband (int): Number of broadband terms in the model.
+        - include_wiggles (str): Whether to include BAO wiggles.
+        - dataset (str): Dataset identifier (e.g., "DESY6").
+        - nz_flag (str): Identifier for the n(z).
+        - cosmology_template (str): Cosmology for the template.
+        - n_broadband (int): Number of broadband parameters.
         - galaxy_bias (dict): Dictionary containing the linear galaxy bias for each redshift bin.
         """
         self.include_wiggles = include_wiggles
@@ -132,7 +132,7 @@ class WThetaModel:
         return indices_params
 
     def _load_and_interpolate_wtheta(self):
-        """Load and interpolate the theoretical w(θ)."""
+        """Load and interpolate the theoretical w(theta)."""
         wtheta_th_interp = {}
         for bin_z in range(self.nbins):
             # Load the theoretical wtheta for each bin
@@ -185,19 +185,19 @@ class BAOFitInitializer:
         Initializes the BAOFitInitializer class.
 
         Parameters:
-        - include_wiggles: Whether to include BAO wiggles.
-        - dataset: Dataset identifier (e.g., "COLA", "DESY6").
-        - weight_type: Weight type (e.g., "unweighted", "weighted").
-        - nz_flag: Identifier for the n(z).
-        - cov_type: Type of covariance.
-        - cosmology_template: Identifier for the cosmology template.
-        - cosmology_covariance: Type of cosmology covariance.
-        - delta_theta: Delta theta value.
-        - theta_min: Minimum theta value.
-        - theta_max: Maximum theta value.
-        - n_broadband: Number of broadband bins.
-        - bins_removed: None, 012, 345, etc.
-        - verbose: Whether to print messages.
+        - include_wiggles (str): Whether to include BAO wiggles.
+        - dataset (str): Dataset identifier (e.g., "DESY6").
+        - weight_type (int): Weight type (for DESY6 it should be either 1 or 0).
+        - nz_flag (str): Identifier for the n(z).
+        - cov_type (str): Type of covariance.
+        - cosmology_template (str): Cosmology for the template.
+        - cosmology_covariance (str): Cosmology for the covariance.
+        - delta_theta (float): Delta theta value.
+        - theta_min (float): Minimum theta value.
+        - theta_max (float): Maximum theta value.
+        - n_broadband (int): Number of broadband parameters.
+        - bins_removed (str): Redshift bins removed when running the BAO fit.
+        - verbose (bool): Whether to print messages.
         """
         self.include_wiggles = include_wiggles
         self.dataset = dataset
@@ -229,7 +229,7 @@ class BAOFitInitializer:
         """Generate the save path for the BAO fit results."""
         if self.dataset == 'DESY6':
             path = (
-                f"fit_results{self.include_wiggles}/{self.dataset}_{self.weight_type}/nz{self.nz_flag}_cov{self.cov_type}_"
+                f"fit_results{self.include_wiggles}/{self.dataset}/weight_{self.weight_type}/nz{self.nz_flag}_cov{self.cov_type}_"
                 f"{self.cosmology_template}temp_{self.cosmology_covariance}cov_deltatheta{self.delta_theta}_"
                 f"thetamin{self.theta_min}_thetamax{self.theta_max}_{self.n_broadband}broadband_binsremoved{self.bins_removed}_"
                 f"alphamin{self.alpha_min}_alphamax{self.alpha_max}"
@@ -251,10 +251,10 @@ class BAOFit:
         - baofit_initializer: Instance of the BAOFitInitializer class.
         - wtheta_model: Instance of the WThetaModel class.
         - theta_data (array): Theta data for fitting.
-        - wtheta_data (list of arrays): Observed wtheta data for each bin.
+        - wtheta_data (dict): Data w(theta) for each bin.
         - cov (array): Covariance matrix.
         - close_fig (bool): Whether to close the resulting figures or nnot.
-        - use_multiprocessing (bool): Whether to run the BAO fits using multiprocessing or not.
+        - use_multiprocessing (bool): Whether to run the BAO fits using multiprocessing.
         - n_cpu (int): Number of CPUs for parallel processing (default: 20).
         """
         self.wtheta_model = wtheta_model
@@ -301,7 +301,7 @@ class BAOFit:
         )
     
     def _construct_design_matrix(self):
-        """Construct the model matrix."""
+        """Construct the design matrix."""
         for i in np.arange(0, self.nbins * self.n_broadband):
             fit_params = np.zeros(self.n_params)
             fit_params[0] = 1

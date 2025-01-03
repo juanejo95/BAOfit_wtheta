@@ -14,10 +14,15 @@ class TemplateInitializer:
         Initializes the template calculator based on input parameters.
 
         Parameters:
-        - dataset (str): Dataset to use (e.g., 'DESY6').
         - include_wiggles (str): Whether to include BAO wiggles.
+        - dataset (str): Dataset identifier (e.g., "DESY6").
         - nz_flag (str): Identifier for the n(z).
-        - cosmology_template (str): Identifier for the cosmology template.
+        - cosmology_template (str): Cosmology for the template.
+        - Nk (int): Number of k bins for the P(k, mu).
+        - Nmu (int): Number of mu bins for the P(k, mu).
+        - Nr (int): Number of r bins when computing xi(r)
+        - Nz (int): Number of z bins when projecting in redshift.
+        - Ntheta (int): Number of theta values when computing the w(theta).
         - use_multiprocessing (bool): Whether to run the BAO fits using multiprocessing or not.
         - n_cpu (int): Number of CPUs for parallel processing (default: 20).
         - verbose (bool): Whether to print messages.
@@ -93,10 +98,7 @@ class TemplateInitializer:
         Load precomputed Pk_ell for a given redshift bin.
 
         Parameters:
-        - bin_z: Redshift bin number.
-
-        Returns:
-        - pk_ell_dict: Dictionary containing the precomputed Pk_ell.
+        - bin_z (int): Redshift bin number.
         """
         if self.verbose:
             print(f"{bin_z} - Attempting to load precomputed Pk_ell...")
@@ -120,10 +122,7 @@ class TemplateInitializer:
         Load precomputed xi_ell for a given redshift bin.
 
         Parameters:
-        - bin_z: Redshift bin number.
-
-        Returns:
-        - xi_ell_dict: Dictionary containing the precomputed xi_ell.
+        - bin_z (int): Redshift bin number.
         """
         if self.verbose:
             print(f"{bin_z} - Attempting to load precomputed xi_ell...")
@@ -144,13 +143,10 @@ class TemplateInitializer:
     
     def load_wtheta(self, bin_z):
         """
-        Load precomputed wtheta data for a given redshift bin.
+        Load precomputed w(theta) for a given redshift bin.
 
         Parameters:
-        - bin_z: Redshift bin number.
-
-        Returns:
-        - wtheta_dict: Dictionary containing the wtheta.
+        - bin_z (int): Redshift bin number.
         """
         if self.verbose:
             print(f"{bin_z} - Attempting to load precomputed wtheta...")
@@ -174,7 +170,7 @@ class PowerSpectrumMultipoles:
         Initialize the PowerSpectrumMultipoles class.
 
         Parameters:
-        - template_initializer: Instance of TemplateInitializer.
+        - template_initializer: Instance of the TemplateInitializer class.
         """
         self.template_initializer = template_initializer
         self.include_wiggles = self.template_initializer.include_wiggles
@@ -212,24 +208,7 @@ class PowerSpectrumMultipoles:
         self.Sigma_0, self.delta_Sigma_0 = self.compute_sigma_parameters()
 
     def compute_sigma_parameters(self):
-        """Compute Sigma_0 and delta_Sigma_0 using the given cosmology."""
-        k_s = 0.2 * self.cosmo.h
-        ell_BAO = 110 / self.cosmo.h
-
-        q = 10 ** np.linspace(np.log10(self.k.min()), np.log10(k_s), self.Nk)
-        Pq_nowigg = np.interp(q, self.k, self.Pk_nowigg)
-
-        x = q * ell_BAO
-        j_0 = np.sin(x) / x
-        j_2 = (3 / x**2 - 1) * j_0 - 3 * np.cos(x) / x**2
-
-        Sigma_0 = np.sqrt(np.trapz(Pq_nowigg * (1 - j_0 + 2 * j_2), q) / (6 * np.pi**2))
-        delta_Sigma_0 = np.sqrt(np.trapz(Pq_nowigg * j_2, q) / (2 * np.pi**2))
-
-        return Sigma_0, delta_Sigma_0
-
-    def compute_sigma_parameters(self):
-        """Compute Sigma_0 and delta_Sigma_0 using the given cosmology."""
+        """Compute Sigma_0 and delta_Sigma_0."""
         k_s = 0.2 * self.cosmo.h
         ell_BAO = 110 / self.cosmo.h
 
@@ -259,8 +238,8 @@ class PowerSpectrumMultipoles:
             + f * self.mu_vector**2 * (self.mu_vector**2 - 1) * delta_Sigma**2
         )
 
-    def compute_pk_multipoles(self, bin_z, f, Sigma_tot_vector, i):
-        """Compute the Pk multipoles."""
+    def compute_pk_ell_singlek(self, bin_z, f, Sigma_tot_vector, i):
+        """Compute the power spectrum multipoles for a single value of k."""
         if self.include_wiggles == "":
             pk_term = (self.Pk_wigg[i] - self.Pk_nowigg[i]) * np.exp(-self.k[i]**2 * Sigma_tot_vector**2) + self.Pk_nowigg[i]
         elif self.include_wiggles == "_nowiggles":
@@ -275,19 +254,18 @@ class PowerSpectrumMultipoles:
         return pk_dict
 
     def compute_pk_ell(self, bin_z):
-        """Main method to compute the power spectrum multipoles for a given bin."""
+        """Compute the power spectrum multipoles for a given redshift bin."""
         z = self.redshift_distributions.z_average(bin_z)
         f = self.cosmo.growth_rate(z)
         Sigma_tot_vector = self.compute_sigma_tot_vector(z, f)
-
-        print(f"WARNING: P_ell(k) will be computed for all k values in parallel using {self.n_cpu} CPUs!")
-        print(f"{bin_z} - Computing Pk_ell...")
-
+        
         pk_ell_dict = {f"Pk_{ell}_{component}": np.zeros(len(self.k)) for ell in self.ells for component in self.components}
-
+        
+        print(f"{bin_z} - Computing Pk_ell...")
         if self.use_multiprocessing:
+            print(f"WARNING: P_ell(k) will be computed for all k values in parallel using {self.n_cpu} CPUs!")
             with multiprocessing.Pool(self.n_cpu) as pool:
-                pk_dict = pool.map(partial(self.compute_pk_multipoles, bin_z, f, Sigma_tot_vector), range(len(self.k)))
+                pk_dict = pool.map(partial(self.compute_pk_ell_singlek, bin_z, f, Sigma_tot_vector), range(len(self.k)))
         else:
             raise NotImplementedError("Sequential computation of P(k) multipoles without multiprocessing is not implemented.")
 
@@ -326,16 +304,13 @@ class CorrelationFunctionMultipoles:
         
         self.verbose = self.template_initializer.verbose
         
-    def compute_xi_multipoles(self, pk_ell_dict, r):
+    def compute_xi_ell_singler(self, pk_ell_dict, r):
         """
-        Compute the correlation function multipoles (xi_ell) for a given radial distance.
+        Compute the correlation function multipoles for a single value of r.
 
         Parameters:
-        - r: Radial distance.
-        - pk_ell_dict: Dictionary containing the Pk_ell data.
-        
-        Returns:
-        - xi_dict: Dictionary containing the xi_ell data.
+        - pk_ell_dict (dict): Power spectrum multipoles.
+        - r (float): Radial distance.
         """
         x = self.k * r
         x_square_inv = 1 / x**2
@@ -356,26 +331,22 @@ class CorrelationFunctionMultipoles:
     
     def compute_xi_ell(self, bin_z):
         """
-        Main method to compute the correlation function multipoles (xi_ell) for a given redshift bin.
+        Compute the correlation function multipoles for a given redshift bin.
 
         Parameters:
-        - bin_z: Redshift bin number.
-
-        Returns:
-        - xi_ell_dict: Dictionary containing the xi_ell data.
+        - bin_z (int): Redshift bin number.
         """
-        print(f"WARNING: xi_ell(r) will be computed for all r values in parallel using {self.n_cpu} CPUs!")
-        print(f"{bin_z} - Computing xi_ell...")
-
         pk_ell_dict = self.template_initializer.load_pk_ell(bin_z)
-
+        
         xi_ell_dict = {f'{ell}_{component}': np.zeros(self.Nr) for component in self.components for ell in self.ells}
-
+        
+        print(f"{bin_z} - Computing xi_ell...")
         if self.use_multiprocessing:
+            print(f"WARNING: xi_ell(r) will be computed for all r values in parallel using {self.n_cpu} CPUs!")
             with multiprocessing.Pool(self.n_cpu) as pool:
-                xi_dict = pool.map(partial(self.compute_xi_multipoles, pk_ell_dict), self.r_12_vector)
+                xi_dict = pool.map(partial(self.compute_xi_ell_singler, pk_ell_dict), self.r_12_vector)
         else:
-            raise NotImplementedError("Sequential computation of ξ(r) multipoles without multiprocessing is not implemented.")
+            raise NotImplementedError("Sequential computation of xi(r) multipoles without multiprocessing is not implemented.")
 
         for i, result in enumerate(xi_dict):
             for key, value in result.items():
@@ -419,11 +390,9 @@ class WThetaCalculator:
         Compute the wtheta for a given redshift bin and a single value of theta.
 
         Parameters:
-        - bin_z: Redshift bin number.
-        - theta: A single value of theta (angular separation) to calculate wtheta for.
-
-        Returns:
-        - wtheta_dict: Dictionary containing the wtheta.
+        - bin_z (int): Redshift bin number.
+        - xi_ell_dict (dict): Correlation function multipoles.
+        - theta (float): A single value of theta (angular separation) to calculate wtheta for.
         """
         z_values = self.redshift_distributions.z_vector(bin_z, Nz=self.Nz, verbose=False)
         D_values = self.cosmo.growth_factor(z_values)
@@ -482,15 +451,14 @@ class WThetaCalculator:
 
     def compute_wtheta(self, bin_z):
         """
-        Compute and save wtheta for a given bin_z.
+        Compute and save wtheta for a given redshift bin.
 
         Parameters:
-        - bin_z: Redshift bin number.
+        - bin_z (int): Redshift bin number.
         """
-        print(f"{bin_z} - Computing w(theta)...")
-        
         xi_ell_dict = self.template_initializer.load_xi_ell(bin_z)
-
+        
+        print(f"{bin_z} - Computing w(theta)...")
         if self.use_multiprocessing:
             print(f"WARNING: w(theta) will be computed for all theta values in parallel using {self.n_cpu} CPUs!")
             with multiprocessing.Pool(self.n_cpu) as pool:
