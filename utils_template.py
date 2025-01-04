@@ -325,7 +325,7 @@ class CorrelationFunctionMultipoles:
         for ell, j_ell_x in zip(self.ells, [j_0_x, j_2_x, j_4_x]):
             for component in self.components:
                 xi_dict[f'{ell}_{component}'] = np.trapz(
-                    j_ell_x * self.k**2 / (2 * np.pi**2) * pk_ell_dict[f'{ell}_{component}'], self.k
+                    (1j**ell).real * j_ell_x * self.k**2 / (2 * np.pi**2) * pk_ell_dict[f'{ell}_{component}'], self.k
                 )
         return xi_dict
     
