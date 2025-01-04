@@ -178,7 +178,7 @@ class WThetaModel:
         return wtheta_template
 
 class BAOFitInitializer:
-    def __init__(self, include_wiggles, dataset, weight_type, nz_flag, cov_type, cosmology_template,
+    def __init__(self, include_wiggles, dataset, weight_type, mock_id, nz_flag, cov_type, cosmology_template,
                  cosmology_covariance, delta_theta, theta_min, theta_max, n_broadband, bins_removed, 
                  alpha_min=0.8, alpha_max=1.2, verbose=True):
         """
@@ -187,7 +187,8 @@ class BAOFitInitializer:
         Parameters:
         - include_wiggles (str): Whether to include BAO wiggles.
         - dataset (str): Dataset identifier (e.g., "DESY6").
-        - weight_type (int): Weight type (for DESY6 it should be either 1 or 0).
+        - weight_type (int): Weight type (for dataset "DESY6" it should be either 1 or 0).
+        - mock_id (int): Mock id (for dataset "COLAY6" it should go from 0 to 1951).
         - nz_flag (str): Identifier for the n(z).
         - cov_type (str): Type of covariance.
         - cosmology_template (str): Cosmology for the template.
@@ -202,6 +203,7 @@ class BAOFitInitializer:
         self.include_wiggles = include_wiggles
         self.dataset = dataset
         self.weight_type = weight_type
+        self.mock_id = mock_id
         self.nz_flag = nz_flag
         self.cov_type = cov_type
         self.cosmology_template = cosmology_template
@@ -230,6 +232,13 @@ class BAOFitInitializer:
         if self.dataset == 'DESY6':
             path = (
                 f"fit_results{self.include_wiggles}/{self.dataset}/weight_{self.weight_type}/nz{self.nz_flag}_cov{self.cov_type}_"
+                f"{self.cosmology_template}temp_{self.cosmology_covariance}cov_deltatheta{self.delta_theta}_"
+                f"thetamin{self.theta_min}_thetamax{self.theta_max}_{self.n_broadband}broadband_binsremoved{self.bins_removed}_"
+                f"alphamin{self.alpha_min}_alphamax{self.alpha_max}"
+            )
+        elif self.dataset == 'COLAY6':
+            path = (
+                f"fit_results{self.include_wiggles}/{self.dataset}/mock_{self.mock_id}/nz{self.nz_flag}_cov{self.cov_type}_"
                 f"{self.cosmology_template}temp_{self.cosmology_covariance}cov_deltatheta{self.delta_theta}_"
                 f"thetamin{self.theta_min}_thetamax{self.theta_max}_{self.n_broadband}broadband_binsremoved{self.bins_removed}_"
                 f"alphamin{self.alpha_min}_alphamax{self.alpha_max}"
