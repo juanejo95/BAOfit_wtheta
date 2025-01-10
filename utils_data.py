@@ -117,16 +117,18 @@ class WThetaDataCovariance:
         indices_theta_allbins = {}
         theta_wtheta_data = {}
         wtheta_data = {}
-
+        
+        zip_file = f'{self.dataset}/wtheta/wtheta.zip'
+        
         for bin_z in range(self.nbins):
             if self.dataset == 'DESY6':
-                filename_wtheta = (f'{self.dataset}/wtheta/wtheta_data_bin{bin_z}_DeltaTheta{self.delta_theta}_'
-                                   f'weights{self.weight_type}_fstar.txt')
-                theta, wtheta = np.loadtxt(filename_wtheta).T
+                file_in_zip = (f'wtheta_data_bin{bin_z}_DeltaTheta{self.delta_theta}_weights{self.weight_type}_fstar.txt')
+                with zipfile.ZipFile(zip_file, 'r') as zf:
+                    print(zf.namelist())
+                    with zf.open(file_in_zip) as filename_wtheta:
+                        theta, wtheta = np.loadtxt(filename_wtheta).T
 
             elif self.dataset == 'COLAY6':
-                zip_file = f'{self.dataset}/wtheta/wtheta.zip'
-
                 if self.mock_id == "mean":
                     with zipfile.ZipFile(zip_file, 'r') as zf:
                         # Find all mock files for the given redshift bin
@@ -188,7 +190,7 @@ class WThetaDataCovariance:
             if self.dataset == 'DESY6':
                 if self.cosmology_covariance == 'mice':
                     if self.delta_theta not in [0.1, 0.2]:
-                        print(f"No mice cosmolike covariance matrix for delta_theta={self.delta_theta}")
+                        print(f"No mice cosmolike covariance matrix for delta_theta={self.delta_theta}.")
                         sys.exit()
                     cov = np.loadtxt(
                         f"{self.dataset}/cov_cosmolike/cov_Y6bao_data_DeltaTheta{str(self.delta_theta).replace('.', 'p')}_mask_g_mice.txt"
@@ -205,12 +207,12 @@ class WThetaDataCovariance:
                     )
                 theta_cov = np.loadtxt(f"{self.dataset}/cov_cosmolike/delta_theta_{self.delta_theta}_binning.txt")[:, 2] * np.pi / 180
         else:
-            print('not implemented')
+            raise NotImplementedError("Such covariance does not exist.")
 
         theta_cov_concatenated = np.concatenate([theta_cov] * self.nbins)
         
         if abs(theta_wtheta_data_concatenated - theta_cov_concatenated[indices_theta_allbins_concatenated]).max() > 10**-5:
-            print('The covariance matrix and the w(theta) do not have the same theta binning')
+            print('The covariance matrix and the w(theta) do not have the same theta binning.')
             sys.exit()
 
         cov_adjusted = np.zeros_like(cov)
