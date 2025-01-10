@@ -124,7 +124,6 @@ class WThetaDataCovariance:
             if self.dataset == 'DESY6':
                 file_in_zip = (f'wtheta_data_bin{bin_z}_DeltaTheta{self.delta_theta}_weights{self.weight_type}_fstar.txt')
                 with zipfile.ZipFile(zip_file, 'r') as zf:
-                    print(zf.namelist())
                     with zf.open(file_in_zip) as filename_wtheta:
                         theta, wtheta = np.loadtxt(filename_wtheta).T
 

@@ -282,6 +282,7 @@ class BAOFit:
         if self.use_multiprocessing:
             print(f"WARNING: The BAO fit will be run in parallel using {self.n_cpu} CPUs!")
         
+        self.dataset = baofit_initializer.dataset
         self.path_baofit = baofit_initializer.get_path_baofit()
         self.bins_removed = baofit_initializer.bins_removed
         self.alpha_min = baofit_initializer.alpha_min
@@ -403,19 +404,24 @@ class BAOFit:
                     self.theta_data * 180 / np.pi,
                     100 * (self.theta_data * 180 / np.pi) ** 2 * self.wtheta_data[bin_z],
                     yerr=100 * (self.theta_data * 180 / np.pi) ** 2 * np.sqrt(np.diag(self.cov))[bin_z * len(self.theta_data):(bin_z + 1) * len(self.theta_data)],
-                    fmt='.', capsize=3
+                    fmt='.', capsize=3, 
+                    label=self.dataset + ' data'
                 )
                 ax.plot(
                     theta_data_interp * 180 / np.pi, 
-                    100 * (theta_data_interp * 180 / np.pi) ** 2 * wtheta_fit_best[bin_z * len(theta_data_interp):(bin_z + 1) * len(theta_data_interp)]
+                    100 * (theta_data_interp * 180 / np.pi) ** 2 * self.wtheta_model.wtheta_th_interp[bin_z](theta_data_interp),
+                    label='template'
                 )
                 ax.plot(
                     theta_data_interp * 180 / np.pi, 
-                    100 * (theta_data_interp * 180 / np.pi) ** 2 * self.wtheta_model.wtheta_th_interp[bin_z](theta_data_interp)
+                    100 * (theta_data_interp * 180 / np.pi) ** 2 * wtheta_fit_best[bin_z * len(theta_data_interp):(bin_z + 1) * len(theta_data_interp)],
+                    label='best fit'
                 )
                 ax.set_ylabel(r'$10^2 \times \theta^2w(\theta)$', fontsize=13)
                 z_edge = self.z_edges[bin_z]
                 ax.text(0.13, 0.1, f'{z_edge[0]} $< z <$ {z_edge[1]}', ha='center', va='center', transform=ax.transAxes, fontsize=18)
+                if bin_z == 0:
+                    ax.legend(loc='upper left', fontsize=13)
                 if bin_z == self.nbins - 1:
                     ax.set_xlabel(r'$\theta$ (deg)', fontsize=13)
             plt.tight_layout()
