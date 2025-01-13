@@ -11,7 +11,7 @@ plt.rcParams["font.serif"] = "Times New Roman"
 from utils_template import TemplateInitializer
 
 class WThetaModelGalaxyBias:
-    def __init__(self, include_wiggles, dataset, nz_flag, cosmology_template):
+    def __init__(self, include_wiggles, dataset, nz_flag, cosmology_template, base_path=None):
         """
         Initialize the WThetaModelGalaxyBias class.
 
@@ -20,11 +20,16 @@ class WThetaModelGalaxyBias:
         - dataset (str): Dataset identifier (e.g., "DESY6").
         - nz_flag (str): Identifier for the n(z).
         - cosmology_template (str): Cosmology for the template.
+        - base_path (str): Path to save the results. Needed to load the template.
         """
         self.include_wiggles = include_wiggles
         self.dataset = dataset
         self.nz_flag = nz_flag
         self.cosmology_template = cosmology_template
+
+        if base_path is None:
+            base_path = f"{os.environ['HOME']}/BAOfit_wtheta"
+        self.base_path = base_path
 
         # Initialize template data
         self.template_initializer = TemplateInitializer(
@@ -33,6 +38,7 @@ class WThetaModelGalaxyBias:
             nz_flag=self.nz_flag,
             cosmology_template=self.cosmology_template,
             verbose=False,
+            base_path=self.base_path,
         )
         self.nbins = self.template_initializer.nbins
         self.z_edges = self.template_initializer.z_edges
@@ -46,12 +52,12 @@ class WThetaModelGalaxyBias:
         for bin_z in range(self.nbins):
             # Load the theoretical wtheta for each bin
             wtheta_dict = self.template_initializer.load_wtheta(bin_z)
-            theta = wtheta_dict['bb'][:, 0]
+            theta = wtheta_dict["bb"][:, 0]
             components_interp[bin_z] = {
-                'theta': theta,
-                'bb': interp1d(theta, wtheta_dict['bb'][:, 1], kind='cubic'),
-                'bf': interp1d(theta, wtheta_dict['bf'][:, 1], kind='cubic'),
-                'ff': interp1d(theta, wtheta_dict['ff'][:, 1], kind='cubic'),
+                "theta": theta,
+                "bb": interp1d(theta, wtheta_dict["bb"][:, 1], kind="cubic"),
+                "bf": interp1d(theta, wtheta_dict["bf"][:, 1], kind="cubic"),
+                "ff": interp1d(theta, wtheta_dict["ff"][:, 1], kind="cubic"),
             }
         return components_interp
 
@@ -63,9 +69,9 @@ class WThetaModelGalaxyBias:
                 interp = self.wtheta_components_interp[bin_z]
                 b = galaxy_bias[bin_z]
                 wtheta_bin = (
-                    b**2 * interp['bb'](theta) +
-                    b * interp['bf'](theta) +
-                    interp['ff'](theta)
+                    b**2 * interp["bb"](theta) +
+                    b * interp["bf"](theta) +
+                    interp["ff"](theta)
                 )
                 wtheta_concatenated.append(wtheta_bin)
 
@@ -74,7 +80,7 @@ class WThetaModelGalaxyBias:
         return wtheta
 
 class WThetaModel:
-    def __init__(self, include_wiggles, dataset, nz_flag, cosmology_template, n_broadband, galaxy_bias):
+    def __init__(self, include_wiggles, dataset, nz_flag, cosmology_template, n_broadband, galaxy_bias, base_path=None):
         """
         Initialize the WThetaModel class.
 
@@ -85,13 +91,18 @@ class WThetaModel:
         - cosmology_template (str): Cosmology for the template.
         - n_broadband (int): Number of broadband parameters.
         - galaxy_bias (dict): Dictionary containing the linear galaxy bias for each redshift bin.
+        - base_path (str): Path to save the results. Needed to load the template.
         """
         self.include_wiggles = include_wiggles
         self.dataset = dataset
         self.nz_flag = nz_flag
         self.cosmology_template = cosmology_template
-        self.galaxy_bias = galaxy_bias
         self.n_broadband = n_broadband
+        self.galaxy_bias = galaxy_bias
+        
+        if base_path is None:
+            base_path = f"{os.environ['HOME']}/BAOfit_wtheta"
+        self.base_path = base_path
         
         self.template_initializer = TemplateInitializer(
             include_wiggles=self.include_wiggles,
@@ -99,18 +110,19 @@ class WThetaModel:
             nz_flag=self.nz_flag,
             cosmology_template=self.cosmology_template,
             verbose=False,
+            base_path=self.base_path,
         )
         self.nbins = self.template_initializer.nbins
         self.z_edges = self.template_initializer.z_edges
 
         # Predefined values based on the given context
         self.names_params = np.array([
-            'alpha', 'A_0', 'B_0', 'C_0', 'D_0', 'E_0', 'F_0', 'G_0', 
-            'A_1', 'B_1', 'C_1', 'D_1', 'E_1', 'F_1', 'G_1', 
-            'A_2', 'B_2', 'C_2', 'D_2', 'E_2', 'F_2', 'G_2', 
-            'A_3', 'B_3', 'C_3', 'D_3', 'E_3', 'F_3', 'G_3', 
-            'A_4', 'B_4', 'C_4', 'D_4', 'E_4', 'F_4', 'G_4', 
-            'A_5', 'B_5', 'C_5', 'D_5', 'E_5', 'F_5', 'G_5'
+            "alpha", "A_0", "B_0", "C_0", "D_0", "E_0", "F_0", "G_0", 
+            "A_1", "B_1", "C_1", "D_1", "E_1", "F_1", "G_1", 
+            "A_2", "B_2", "C_2", "D_2", "E_2", "F_2", "G_2", 
+            "A_3", "B_3", "C_3", "D_3", "E_3", "F_3", "G_3", 
+            "A_4", "B_4", "C_4", "D_4", "E_4", "F_4", "G_4", 
+            "A_5", "B_5", "C_5", "D_5", "E_5", "F_5", "G_5"
         ])
         self.n_broadband_max = int((len(self.names_params) - 1) / 6 - 1)  # This should be 6 (from B to G)
         self.n_params_max = len(self.names_params)
@@ -137,10 +149,10 @@ class WThetaModel:
         for bin_z in range(self.nbins):
             # Load the theoretical wtheta for each bin
             wtheta_dict = self.template_initializer.load_wtheta(bin_z)
-            theta = wtheta_dict['bb'][:, 0]
-            wtheta_bb = wtheta_dict['bb'][:, 1]
-            wtheta_bf = wtheta_dict['bf'][:, 1]
-            wtheta_ff = wtheta_dict['ff'][:, 1]
+            theta = wtheta_dict["bb"][:, 0]
+            wtheta_bb = wtheta_dict["bb"][:, 1]
+            wtheta_bf = wtheta_dict["bf"][:, 1]
+            wtheta_ff = wtheta_dict["ff"][:, 1]
 
             # Combine these into the final wtheta model for the bin
             wtheta_combined = (
@@ -150,7 +162,7 @@ class WThetaModel:
             )
             
             # Interpolate the combined wtheta
-            wtheta_th_interp[bin_z] = interp1d(theta, wtheta_combined, kind='cubic')
+            wtheta_th_interp[bin_z] = interp1d(theta, wtheta_combined, kind="cubic")
 
         return wtheta_th_interp
 
@@ -180,7 +192,7 @@ class WThetaModel:
 class BAOFitInitializer:
     def __init__(self, include_wiggles, dataset, weight_type, mock_id, nz_flag, cov_type, cosmology_template,
                  cosmology_covariance, delta_theta, theta_min, theta_max, n_broadband, bins_removed, 
-                 alpha_min=0.8, alpha_max=1.2, verbose=True):
+                 alpha_min=0.8, alpha_max=1.2, verbose=True, base_path=None):
         """
         Initializes the BAOFitInitializer class.
 
@@ -199,6 +211,7 @@ class BAOFitInitializer:
         - n_broadband (int): Number of broadband parameters.
         - bins_removed (str): Redshift bins removed when running the BAO fit.
         - verbose (bool): Whether to print messages.
+        - base_path (str): Path to save the results.
         """
         self.include_wiggles = include_wiggles
         self.dataset = dataset
@@ -215,11 +228,15 @@ class BAOFitInitializer:
         self.bins_removed = bins_removed
         self.verbose = verbose
         
+        if base_path is None:
+            base_path = f"{os.environ['HOME']}/BAOfit_wtheta"
+        self.base_path = base_path
+        
         self.alpha_min = alpha_min
         self.alpha_max = alpha_max
         self.Nalpha = 10**3
         
-        # Generate the path for saving results
+        # Path to save the BAO-fit results
         self.path_baofit = self._generate_path_baofit()
 
         # Create the directory if it does not exist
@@ -229,16 +246,16 @@ class BAOFitInitializer:
 
     def _generate_path_baofit(self):
         """Generate the save path for the BAO fit results."""
-        if self.dataset in ['DESY6', 'DESY6_noDESI']:
+        if self.dataset in ["DESY6", "DESY6_noDESI"]:
             path = (
-                f"fit_results{self.include_wiggles}/{self.dataset}/weight_{self.weight_type}/nz{self.nz_flag}_cov{self.cov_type}_"
+                f"{self.base_path}/fit_results{self.include_wiggles}/{self.dataset}/weight_{self.weight_type}/nz{self.nz_flag}_cov{self.cov_type}_"
                 f"{self.cosmology_template}temp_{self.cosmology_covariance}cov_deltatheta{self.delta_theta}_"
                 f"thetamin{self.theta_min}_thetamax{self.theta_max}_{self.n_broadband}broadband_binsremoved{self.bins_removed}_"
                 f"alphamin{self.alpha_min}_alphamax{self.alpha_max}"
             )
-        elif self.dataset == 'COLAY6':
+        elif self.dataset == "COLAY6":
             path = (
-                f"fit_results{self.include_wiggles}/{self.dataset}/mock_{self.mock_id}/nz{self.nz_flag}_cov{self.cov_type}_"
+                f"{self.base_path}/fit_results{self.include_wiggles}/{self.dataset}/mock_{self.mock_id}/nz{self.nz_flag}_cov{self.cov_type}_"
                 f"{self.cosmology_template}temp_{self.cosmology_covariance}cov_deltatheta{self.delta_theta}_"
                 f"thetamin{self.theta_min}_thetamax{self.theta_max}_{self.n_broadband}broadband_binsremoved{self.bins_removed}_"
                 f"alphamin{self.alpha_min}_alphamax{self.alpha_max}"
@@ -349,7 +366,7 @@ class BAOFit:
         chi2_vector = np.zeros_like(alpha_vector)
 
         def compute_chi2(alpha):
-            amplitude_params = minimize(self.regularized_least_squares, x0=np.ones(self.nbins), method='SLSQP',
+            amplitude_params = minimize(self.regularized_least_squares, x0=np.ones(self.nbins), method="SLSQP",
                                         bounds=[(0, None)] * self.nbins, tol=tol_minimize, args=(alpha,))
             chi2_value = self.regularized_least_squares(amplitude_params.x, alpha)
             return chi2_value
@@ -364,7 +381,7 @@ class BAOFit:
         alpha_best = alpha_vector[best]
         chi2_best = chi2_vector[best]
 
-        np.savetxt(self.path_baofit + '/likelihood_data.txt', np.column_stack([alpha_vector, chi2_vector]))
+        np.savetxt(self.path_baofit + "/likelihood_data.txt", np.column_stack([alpha_vector, chi2_vector]))
 
         if chi2_vector[0] > chi2_best + 1 and chi2_vector[-1] > chi2_best + 1:
             alpha_down = None
@@ -382,7 +399,7 @@ class BAOFit:
 
             err_alpha = (alpha_up - alpha_down) / 2
 
-            amplitude_params_best = minimize(self.regularized_least_squares, x0=np.ones(self.nbins), method='SLSQP',
+            amplitude_params_best = minimize(self.regularized_least_squares, x0=np.ones(self.nbins), method="SLSQP",
                                             bounds=[(0, None)] * self.nbins, tol=tol_minimize, args=(alpha_best)).x
 
             broadband_params_best = self.broadband_params(amplitude_params_best, alpha_best)
@@ -404,34 +421,34 @@ class BAOFit:
                     self.theta_data * 180 / np.pi,
                     100 * (self.theta_data * 180 / np.pi) ** 2 * self.wtheta_data[bin_z],
                     yerr=100 * (self.theta_data * 180 / np.pi) ** 2 * np.sqrt(np.diag(self.cov))[bin_z * len(self.theta_data):(bin_z + 1) * len(self.theta_data)],
-                    fmt='.', capsize=3, 
-                    label=self.dataset + ' data'
+                    fmt=".", capsize=3, 
+                    label=self.dataset + " data"
                 )
                 ax.plot(
                     theta_data_interp * 180 / np.pi, 
                     100 * (theta_data_interp * 180 / np.pi) ** 2 * self.wtheta_model.wtheta_th_interp[bin_z](theta_data_interp),
-                    label='template'
+                    label="template"
                 )
                 ax.plot(
                     theta_data_interp * 180 / np.pi, 
                     100 * (theta_data_interp * 180 / np.pi) ** 2 * wtheta_fit_best[bin_z * len(theta_data_interp):(bin_z + 1) * len(theta_data_interp)],
-                    label='best fit'
+                    label="best fit"
                 )
-                ax.set_ylabel(r'$10^2 \times \theta^2w(\theta)$', fontsize=13)
+                ax.set_ylabel(r"$10^2 \times \theta^2w(\theta)$", fontsize=13)
                 z_edge = self.z_edges[bin_z]
-                ax.text(0.13, 0.1, f'{z_edge[0]} $< z <$ {z_edge[1]}', ha='center', va='center', transform=ax.transAxes, fontsize=18)
+                ax.text(0.13, 0.1, f"{z_edge[0]} $< z <$ {z_edge[1]}", ha="center", va="center", transform=ax.transAxes, fontsize=18)
                 if bin_z == 0:
-                    ax.legend(loc='upper left', fontsize=13)
+                    ax.legend(loc="upper left", fontsize=13)
                 if bin_z == self.nbins - 1:
-                    ax.set_xlabel(r'$\theta$ (deg)', fontsize=13)
+                    ax.set_xlabel(r"$\theta$ (deg)", fontsize=13)
             plt.tight_layout()
-            plt.savefig(self.path_baofit + '/wtheta_data_bestfit.png', bbox_inches='tight')
+            plt.savefig(self.path_baofit + "/wtheta_data_bestfit.png", bbox_inches="tight")
             if self.close_fig:
                 plt.close(fig)
                 
             # Save the w(theta)
             np.savetxt(
-                self.path_baofit + '/wtheta_data_bestfit.txt',
+                self.path_baofit + "/wtheta_data_bestfit.txt",
                 np.column_stack([
                     np.concatenate([self.theta_data] * self.nbins),
                     self.wtheta_data_concatenated,
@@ -442,39 +459,39 @@ class BAOFit:
 
             # Plot the chi2 vs alpha
             fig, ax = plt.subplots(figsize=(6, 5))
-            ax.plot(alpha_vector, chi2_vector, color='blue', lw=2, label=r'$\chi^2$ profile')
-            ax.axhline(chi2_best + 1, color='black', linestyle='--', linewidth=1, label=r'$\chi^2_{\mathrm{min}} + 1$')
-            ax.plot(alpha_best, chi2_best, 'd', color='orange', markersize=8, label=fr'$\alpha = {alpha_best:.4f}$')
-            ax.axvspan(alpha_down, alpha_up, color='k', alpha=0.1, label=fr'$\sigma_\alpha = {err_alpha:.4f}$')
+            ax.plot(alpha_vector, chi2_vector, color="blue", lw=2, label=r"$\chi^2$ profile")
+            ax.axhline(chi2_best + 1, color="black", linestyle="--", linewidth=1, label=r"$\chi^2_{\mathrm{min}} + 1$")
+            ax.plot(alpha_best, chi2_best, "d", color="orange", markersize=8, label=fr"$\alpha = {alpha_best:.4f}$")
+            ax.axvspan(alpha_down, alpha_up, color="k", alpha=0.1, label=fr"$\sigma_\alpha = {err_alpha:.4f}$")
             ax.set_xlim(self.alpha_min, self.alpha_max)
-            ax.set_xlabel(r'$\alpha$', fontsize=16)
-            ax.set_ylabel(r'$\chi^2$', fontsize=16)
+            ax.set_xlabel(r"$\alpha$", fontsize=16)
+            ax.set_ylabel(r"$\chi^2$", fontsize=16)
             ax.xaxis.set_major_locator(plt.MaxNLocator(5))
             ax.yaxis.set_major_locator(plt.MaxNLocator(5))
-            ax.tick_params(axis='both', which='major', labelsize=12)
-            ax.legend(loc='lower right', fontsize=12)
-            plt.savefig(self.path_baofit + '/chi2_profile.png', bbox_inches='tight', dpi=300)
+            ax.tick_params(axis="both", which="major", labelsize=12)
+            ax.legend(loc="lower right", fontsize=12)
+            plt.savefig(self.path_baofit + "/chi2_profile.png", bbox_inches="tight", dpi=300)
             if self.close_fig:
                 plt.close(fig)
 
         else:
-            print('The fit does not have the 1-sigma region between ' + str(self.alpha_min) + ' and ' + str(self.alpha_max))
+            print("The fit does not have the 1-sigma region between " + str(self.alpha_min) + " and " + str(self.alpha_max) +".")
 
             err_alpha = 9999
             
             # Plot the chi2 vs alpha
             fig, ax = plt.subplots(figsize=(6, 5))
-            ax.plot(alpha_vector, chi2_vector, color='blue', lw=2, label=r'$\chi^2$ profile')
-            ax.axhline(chi2_best + 1, color='black', linestyle='--', linewidth=1, label=r'$\chi^2_{\mathrm{min}} + 1$')
-            ax.plot(alpha_best, chi2_best, 'd', color='orange', markersize=8, label=fr'$\alpha = {alpha_best:.4f}$')
+            ax.plot(alpha_vector, chi2_vector, color="blue", lw=2, label=r"$\chi^2$ profile")
+            ax.axhline(chi2_best + 1, color="black", linestyle="--", linewidth=1, label=r"$\chi^2_{\mathrm{min}} + 1$")
+            ax.plot(alpha_best, chi2_best, "d", color="orange", markersize=8, label=fr"$\alpha = {alpha_best:.4f}$")
             ax.set_xlim(self.alpha_min, self.alpha_max)
-            ax.set_xlabel(r'$\alpha$', fontsize=16)
-            ax.set_ylabel(r'$\chi^2$', fontsize=16)
+            ax.set_xlabel(r"$\alpha$", fontsize=16)
+            ax.set_ylabel(r"$\chi^2$", fontsize=16)
             ax.xaxis.set_major_locator(plt.MaxNLocator(5))
             ax.yaxis.set_major_locator(plt.MaxNLocator(5))
-            ax.tick_params(axis='both', which='major', labelsize=12)
-            ax.legend(loc='lower right', fontsize=12)
-            plt.savefig(self.path_baofit + '/chi2_profile_bad.png', bbox_inches='tight', dpi=300)
+            ax.tick_params(axis="both", which="major", labelsize=12)
+            ax.legend(loc="lower right", fontsize=12)
+            plt.savefig(self.path_baofit + "/chi2_profile_bad.png", bbox_inches="tight", dpi=300)
             if self.close_fig:
                 plt.close(fig)
 
@@ -485,10 +502,10 @@ class BAOFit:
 
         # Save the results
         results = np.array([[alpha_best, err_alpha, chi2_best, dof]])
-        np.savetxt(self.path_baofit + '/fit_results.txt', results, fmt=['%.4f', '%.4f', '%.4f', '%d'])
+        np.savetxt(self.path_baofit + "/fit_results.txt", results, fmt=["%.4f", "%.4f", "%.4f", "%d"])
 
         # Print them to the console as well
-        print(f'Best-fit alpha = {alpha_best:.4f} ± {err_alpha:.4f}')
-        print(f'chi2/dof = {chi2_best:.4f}/{dof}')
+        print(f"Best-fit alpha = {alpha_best:.4f} ± {err_alpha:.4f}")
+        print(f"chi2/dof = {chi2_best:.4f}/{dof}")
 
         return alpha_best, err_alpha, chi2_best, dof

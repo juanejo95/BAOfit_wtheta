@@ -9,7 +9,8 @@ from utils_cosmology import CosmologicalParameters
 from utils_data import RedshiftDistributions
 
 class TemplateInitializer:
-    def __init__(self, include_wiggles, dataset, nz_flag, cosmology_template, Nk=2*10**5, Nmu=5*10**4, Nr=5*10**4, Nz=10**3, Ntheta=10**3, use_multiprocessing=False, n_cpu=None, verbose=True):
+    def __init__(self, include_wiggles, dataset, nz_flag, cosmology_template, Nk=2*10**5, Nmu=5*10**4, Nr=5*10**4, Nz=10**3, Ntheta=10**3, 
+                 use_multiprocessing=False, n_cpu=None, verbose=True, base_path=None):
         """
         Initializes the template calculator based on input parameters.
 
@@ -26,6 +27,7 @@ class TemplateInitializer:
         - use_multiprocessing (bool): Whether to run the BAO fits using multiprocessing or not.
         - n_cpu (int): Number of CPUs for parallel processing (default: 20).
         - verbose (bool): Whether to print messages.
+        - base_path (str): Path to save the results.
         """
         self.include_wiggles = include_wiggles
         self.dataset = dataset
@@ -40,6 +42,10 @@ class TemplateInitializer:
         self.n_cpu = n_cpu if n_cpu is not None else 20
         self.verbose = verbose
         
+        if base_path is None:
+            base_path = f"{os.environ['HOME']}/BAOfit_wtheta"
+        self.base_path = base_path
+        
         self.mu_vector = np.linspace(-1, 1, self.Nmu)
         self.r_12_vector = 10**np.linspace(np.log10(10**-2), np.log10(10**5), self.Nr)
         self.theta = 10**np.linspace(np.log10(0.001), np.log10(179.5), self.Ntheta) * np.pi / 180
@@ -50,9 +56,9 @@ class TemplateInitializer:
 
         # Bias components
         self.components = ["bb", "bf", "ff"]
-
-        # Generate the path_template
-        self.path_template = f"wtheta_template{self.include_wiggles}/{self.dataset}/nz_{self.nz_flag}/wtheta_{self.cosmology_template}"
+        
+        # Path to save the templates
+        self.path_template = f"{self.base_path}/wtheta_template{self.include_wiggles}/{self.dataset}/nz_{self.nz_flag}/wtheta_{self.cosmology_template}"
         
         # Make sure the directory exists
         os.makedirs(self.path_template, exist_ok=True)
@@ -77,10 +83,10 @@ class TemplateInitializer:
     
     def _initialize_cosmology(self):
         """Initialize cosmology based on the template."""
-        if self.cosmology_template == 'desifid':
+        if self.cosmology_template == "desifid":
             self.cosmo = DESI()
             if self.verbose:
-                print('Initialized cosmology: DESI fiducial')
+                print("Initialized cosmology: DESI fiducial.")
         else:
             params = CosmologicalParameters(self.cosmology_template, verbose=self.verbose)
             self.cosmo = Cosmology(
@@ -90,7 +96,7 @@ class TemplateInitializer:
                 sigma8=params.sigma_8,
                 n_s=params.n_s,
                 Omega_ncdm=params.Omega_nu_massive,
-                engine='class'
+                engine="class"
             )
             
     def load_pk_ell(self, bin_z):
@@ -106,7 +112,7 @@ class TemplateInitializer:
         pk_ell_dict = {}
         try:
             pk_ell_dict = {
-                f'{ell}_{component}': np.loadtxt(f"{self.path_template}/Pk_ell_{component}_bin{bin_z}.txt")[:, idx + 1]
+                f"{ell}_{component}": np.loadtxt(f"{self.path_template}/Pk_ell_{component}_bin{bin_z}.txt")[:, idx + 1]
                 for component in self.components
                 for idx, ell in enumerate(self.ells)
             }
@@ -130,7 +136,7 @@ class TemplateInitializer:
         xi_ell_dict = {}
         try:
             xi_ell_dict = {
-                f'{ell}_{component}': np.loadtxt(f"{self.path_template}/xi_ell_{component}_bin{bin_z}.txt")[:, idx + 1]
+                f"{ell}_{component}": np.loadtxt(f"{self.path_template}/xi_ell_{component}_bin{bin_z}.txt")[:, idx + 1]
                 for component in self.components
                 for idx, ell in enumerate(self.ells)
             }
@@ -159,7 +165,7 @@ class TemplateInitializer:
             }
         except FileNotFoundError as e:
             print(f"Error: {e}")
-            print("Precomputed wtheta files do not exist. Please, compute them first.")
+            print("Precomputed w(theta) files do not exist. Please, compute them first.")
             raise
 
         return wtheta_dict
@@ -324,8 +330,8 @@ class CorrelationFunctionMultipoles:
         xi_dict = {}
         for ell, j_ell_x in zip(self.ells, [j_0_x, j_2_x, j_4_x]):
             for component in self.components:
-                xi_dict[f'{ell}_{component}'] = np.trapz(
-                    (1j**ell).real * j_ell_x * self.k**2 / (2 * np.pi**2) * pk_ell_dict[f'{ell}_{component}'], self.k
+                xi_dict[f"{ell}_{component}"] = np.trapz(
+                    (1j**ell).real * j_ell_x * self.k**2 / (2 * np.pi**2) * pk_ell_dict[f"{ell}_{component}"], self.k
                 )
         return xi_dict
     
@@ -338,7 +344,7 @@ class CorrelationFunctionMultipoles:
         """
         pk_ell_dict = self.template_initializer.load_pk_ell(bin_z)
         
-        xi_ell_dict = {f'{ell}_{component}': np.zeros(self.Nr) for component in self.components for ell in self.ells}
+        xi_ell_dict = {f"{ell}_{component}": np.zeros(self.Nr) for component in self.components for ell in self.ells}
         
         print(f"{bin_z} - Computing xi_ell...")
         if self.use_multiprocessing:
@@ -355,7 +361,7 @@ class CorrelationFunctionMultipoles:
         for component in self.components:
             np.savetxt(
                 f"{self.path_template}/xi_ell_{component}_bin{bin_z}.txt",
-                np.column_stack([self.r_12_vector] + [xi_ell_dict[f'{ell}_{component}'] for ell in self.ells])
+                np.column_stack([self.r_12_vector] + [xi_ell_dict[f"{ell}_{component}"] for ell in self.ells])
             )
 
         print(f"{bin_z} - xi_ell computed!")
@@ -413,7 +419,7 @@ class WThetaCalculator:
 #                     try:
 #                         for component in self.components:
 #                             integrand[component][i, j] = phi_values[i] * phi_values[j] * sum(
-#                                 np.interp(r_12, self.r_12_vector, xi_ell_dict[f'{ell}_{component}']) * 
+#                                 np.interp(r_12, self.r_12_vector, xi_ell_dict[f"{ell}_{component}"]) * 
 #                                 np.interp(mu, self.mu_vector, self.legendre[ell])
 #                                 for ell in self.ells
 #                             )
@@ -430,7 +436,7 @@ class WThetaCalculator:
             xi_ell_dict_interp[component] = {}
             legendre_interp[component] = {}
             for ell in self.ells:
-                xi_ell_dict_interp[component][ell] = np.interp(r_12_values, self.r_12_vector, xi_ell_dict[f'{ell}_{component}'])
+                xi_ell_dict_interp[component][ell] = np.interp(r_12_values, self.r_12_vector, xi_ell_dict[f"{ell}_{component}"])
                 legendre_interp[component][ell] = np.interp(mu_values, self.mu_vector, self.legendre[ell])
 
         for component in self.components:

@@ -15,24 +15,25 @@ class RedshiftDistributions:
         """
         self.dataset = dataset
         self.nz_flag = nz_flag
-
+        self.verbose = verbose
+        
         # File paths based on dataset and nz_flag
-        if self.dataset in ['DESY6', 'DESY6_noDESI']:
-            if self.nz_flag == 'fid':
-                file_path = f'{self.dataset}/nz/nz_DNFpdf_shift_stretch_wrtclusteringz1-4_wrtVIPERS5-6_v2.txt'
+        if self.dataset in ["DESY6", "DESY6_noDESI"]:
+            if self.nz_flag == "fid":
+                file_path = f"{self.dataset}/nz/nz_DNFpdf_shift_stretch_wrtclusteringz1-4_wrtVIPERS5-6_v2.txt"
                 self.z_edges = {
                     0: [0.6, 0.7], 1: [0.7, 0.8], 2: [0.8, 0.9], 3: [0.9, 1.0], 4: [1.0, 1.1], 5: [1.1, 1.2]
                 }
-            elif nz_flag == 'clusteringz':
-                file_path = f'{self.dataset}/nz/nz_clusteringz.txt'
+            elif nz_flag == "clusteringz":
+                file_path = f"{self.dataset}/nz/nz_clusteringz.txt"
                 self.z_edges = {
                     0: [0.6, 0.7], 1: [0.7, 0.8], 2: [0.8, 0.9], 3: [0.9, 1.0]
                 }
             else:
                 raise ValueError(f"Unknown nz_flag: {self.nz_flag} for dataset: {self.dataset}")
-        elif self.dataset == 'COLAY6':
-            if self.nz_flag == 'COLA':
-                file_path = f'{self.dataset}/nz/nz_Y6COLA.txt'
+        elif self.dataset == "COLAY6":
+            if self.nz_flag == "COLA":
+                file_path = f"{self.dataset}/nz/nz_Y6COLA.txt"
                 self.z_edges = {
                     0: [0.6, 0.7], 1: [0.7, 0.8], 2: [0.8, 0.9], 3: [0.9, 1.0], 4: [1.0, 1.1], 5: [1.1, 1.2]
                 }
@@ -48,7 +49,7 @@ class RedshiftDistributions:
             raise FileNotFoundError(f"Error loading n(z) file for {self.dataset} with nz_flag {self.nz_flag}: {e}")
 
         self.nbins = len(self.nz_data.T) - 1
-        if verbose:
+        if self.verbose:
             print(f"Using {self.dataset} {self.nz_flag} n(z), which has {self.nbins} redshift bins")
 
     def __repr__(self):
@@ -118,26 +119,26 @@ class WThetaDataCovariance:
         theta_wtheta_data = {}
         wtheta_data = {}
         
-        zip_file = f'{self.dataset}/wtheta/wtheta.zip'
+        zip_file = f"{self.dataset}/wtheta/wtheta.zip"
         
         for bin_z in range(self.nbins):
-            if self.dataset == 'DESY6':
-                file_in_zip = (f'wtheta_data_bin{bin_z}_DeltaTheta{self.delta_theta}_weights{self.weight_type}_fstar.txt')
-                with zipfile.ZipFile(zip_file, 'r') as zf:
+            if self.dataset == "DESY6":
+                file_in_zip = (f"wtheta_data_bin{bin_z}_DeltaTheta{self.delta_theta}_weights{self.weight_type}_fstar.txt")
+                with zipfile.ZipFile(zip_file, "r") as zf:
                     with zf.open(file_in_zip) as filename_wtheta:
                         theta, wtheta = np.loadtxt(filename_wtheta).T
                         
-            elif self.dataset == 'DESY6_noDESI':
-                file_in_zip = (f'wtheta_data_bin{bin_z}_DeltaTheta{self.delta_theta}_weights{self.weight_type}_noDESI.txt')
-                with zipfile.ZipFile(zip_file, 'r') as zf:
+            elif self.dataset == "DESY6_noDESI":
+                file_in_zip = (f"wtheta_data_bin{bin_z}_DeltaTheta{self.delta_theta}_weights{self.weight_type}_noDESI.txt")
+                with zipfile.ZipFile(zip_file, "r") as zf:
                     with zf.open(file_in_zip) as filename_wtheta:
                         theta, wtheta = np.loadtxt(filename_wtheta).T[:2]
 
-            elif self.dataset == 'COLAY6':
+            elif self.dataset == "COLAY6":
                 if self.mock_id == "mean":
-                    with zipfile.ZipFile(zip_file, 'r') as zf:
+                    with zipfile.ZipFile(zip_file, "r") as zf:
                         # Find all mock files for the given redshift bin
-                        pattern = re.compile(f'wtheta_mock[0-9]+_bin{bin_z}_DeltaTheta{self.delta_theta}.txt')
+                        pattern = re.compile(f"wtheta_mock[0-9]+_bin{bin_z}_DeltaTheta{self.delta_theta}.txt")
                         mock_files = [name for name in zf.namelist() if pattern.match(name)]
                         
                         if bin_z == 0:
@@ -158,8 +159,8 @@ class WThetaDataCovariance:
                         wtheta = np.mean(all_wtheta, axis=0)
 
                 else:
-                    file_in_zip = f'wtheta_mock{self.mock_id}_bin{bin_z}_DeltaTheta{self.delta_theta}.txt'
-                    with zipfile.ZipFile(zip_file, 'r') as zf:
+                    file_in_zip = f"wtheta_mock{self.mock_id}_bin{bin_z}_DeltaTheta{self.delta_theta}.txt"
+                    with zipfile.ZipFile(zip_file, "r") as zf:
                         with zf.open(file_in_zip) as filename_wtheta:
                             theta, wtheta = np.loadtxt(filename_wtheta).T
 
@@ -191,27 +192,27 @@ class WThetaDataCovariance:
         return theta_data, wtheta_data, indices_theta_allbins_concatenated, theta_wtheta_data_concatenated
 
     def load_covariance_matrix(self, indices_theta_allbins_concatenated, theta_wtheta_data_concatenated):
-        if self.cov_type == 'cosmolike':
-            if self.dataset in ['DESY6', 'DESY6_noDESI']:
-                if self.cosmology_covariance == 'mice':
+        if self.cov_type == "cosmolike":
+            path_cov = f"{self.dataset}/cov_{self.cov_type}"
+            if self.dataset in ["DESY6", "DESY6_noDESI"]:
+                if self.cosmology_covariance == "mice":
                     if self.delta_theta not in [0.1, 0.2]:
                         print(f"No mice cosmolike covariance matrix for delta_theta={self.delta_theta}.")
                         sys.exit()
                     cov = np.loadtxt(
-                        f"{self.dataset}/cov_cosmolike/cov_Y6bao_data_DeltaTheta{str(self.delta_theta).replace('.', 'p')}_mask_g_mice.txt"
+                        f"{path_cov}/cov_Y6bao_data_DeltaTheta{str(self.delta_theta).replace('.', 'p')}_mask_g_mice.txt"
                     )
-                elif self.cosmology_covariance == 'planck':
+                elif self.cosmology_covariance == "planck":
                     cov = np.loadtxt(
-                        f"{self.dataset}/cov_cosmolike/cov_Y6bao_data_DeltaTheta{str(self.delta_theta).replace('.', 'p')}_mask_g_planck.txt"
+                        f"{path_cov}/cov_Y6bao_data_DeltaTheta{str(self.delta_theta).replace('.', 'p')}_mask_g_planck.txt"
                     )
-                theta_cov = np.loadtxt(f"{self.dataset}/cov_cosmolike/delta_theta_{self.delta_theta}_binning.txt")[:, 2] * np.pi / 180
-            elif self.dataset == 'COLAY6':
-                if self.cosmology_covariance == 'mice':
+            elif self.dataset == "COLAY6":
+                if self.cosmology_covariance == "mice":
                     cov = np.loadtxt(
-                        f"{self.dataset}/cov_cosmolike/cov_Y6bao_cola_deltatheta{str(self.delta_theta).replace('.', 'p')}_mask_g_area2_biasv2.txt"
+                        f"{path_cov}/cov_Y6bao_cola_deltatheta{str(self.delta_theta).replace('.', 'p')}_mask_g_area2_biasv2.txt"
                     )
-                theta_cov = np.loadtxt(f"{self.dataset}/cov_cosmolike/delta_theta_{self.delta_theta}_binning.txt")[:, 2] * np.pi / 180
-            if self.dataset == 'DESY6_noDESI':
+            theta_cov = np.loadtxt(f"{path_cov}/delta_theta_{self.delta_theta}_binning.txt")[:, 2] * np.pi / 180
+            if self.dataset == "DESY6_noDESI":
                 cov *= 1.456
         else:
             raise NotImplementedError("Such covariance does not exist.")
@@ -219,7 +220,7 @@ class WThetaDataCovariance:
         theta_cov_concatenated = np.concatenate([theta_cov] * self.nbins)
         
         if abs(theta_wtheta_data_concatenated - theta_cov_concatenated[indices_theta_allbins_concatenated]).max() > 10**-5:
-            print('The covariance matrix and the w(theta) do not have the same theta binning.')
+            print("The covariance matrix and the w(theta) do not have the same theta binning.")
             sys.exit()
 
         cov_adjusted = np.zeros_like(cov)
@@ -231,14 +232,14 @@ class WThetaDataCovariance:
                     cov_adjusted[slice_1, slice_2] = cov[slice_1, slice_2]
         cov = cov_adjusted
 
-        if self.remove_crosscov == 'y':
+        if self.remove_crosscov == "y":
             cov_adjusted = np.zeros_like(cov)
             for bin_z in range(self.nbins):
                 slice_ = slice(bin_z * len(theta_cov), (bin_z + 1) * len(theta_cov))
                 cov_adjusted[slice_, slice_] = cov[slice_, slice_]
             cov = cov_adjusted
 
-        if self.diag_only == 'y':
+        if self.diag_only == "y":
             cov = np.diag(np.diag(cov))
 
         cov_orig = np.copy(cov)

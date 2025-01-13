@@ -1,12 +1,12 @@
 class CosmologicalParameters:
-    def __init__(self, cosmology='planck', verbose=True):
+    def __init__(self, cosmology="planck", verbose=True):
         """
         Initialize the cosmological parameters for a given cosmology.
         
         Parameters:
-        - cosmology (str): Name of the cosmology ('planck' or 'mice').
+        - cosmology (str): Name of the cosmology ("planck" or "mice").
         """
-        if cosmology == 'planck':
+        if cosmology == "planck":
             self.H_0 = 67.6  # Hubble constant in km/s/Mpc
             self.h = self.H_0 / 100.0
             
@@ -20,7 +20,7 @@ class CosmologicalParameters:
             self.Omega_nu_massive = 0.000644 / self.h**2
             self.num_nu_massive = 1
         
-        elif cosmology == 'mice':
+        elif cosmology == "mice":
             self.H_0 = 70.0  # Hubble constant in km/s/Mpc
             self.h = self.H_0 / 100.0
             
@@ -38,4 +38,4 @@ class CosmologicalParameters:
             raise ValueError("Cosmology not recognized. Please choose 'planck' or 'mice'.")
         
         if verbose:
-            print(f"Initialized cosmology: {cosmology}")
+            print(f"Initialized cosmology: {cosmology}.")
