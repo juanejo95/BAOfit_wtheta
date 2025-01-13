@@ -17,7 +17,7 @@ class RedshiftDistributions:
         self.nz_flag = nz_flag
 
         # File paths based on dataset and nz_flag
-        if self.dataset == 'DESY6':
+        if self.dataset in ['DESY6', 'DESY6_noDESI']:
             if self.nz_flag == 'fid':
                 file_path = f'{self.dataset}/nz/nz_DNFpdf_shift_stretch_wrtclusteringz1-4_wrtVIPERS5-6_v2.txt'
                 self.z_edges = {
@@ -126,6 +126,12 @@ class WThetaDataCovariance:
                 with zipfile.ZipFile(zip_file, 'r') as zf:
                     with zf.open(file_in_zip) as filename_wtheta:
                         theta, wtheta = np.loadtxt(filename_wtheta).T
+                        
+            elif self.dataset == 'DESY6_noDESI':
+                file_in_zip = (f'wtheta_data_bin{bin_z}_DeltaTheta{self.delta_theta}_weights{self.weight_type}_noDESI.txt')
+                with zipfile.ZipFile(zip_file, 'r') as zf:
+                    with zf.open(file_in_zip) as filename_wtheta:
+                        theta, wtheta = np.loadtxt(filename_wtheta).T[:2]
 
             elif self.dataset == 'COLAY6':
                 if self.mock_id == "mean":
@@ -186,7 +192,7 @@ class WThetaDataCovariance:
 
     def load_covariance_matrix(self, indices_theta_allbins_concatenated, theta_wtheta_data_concatenated):
         if self.cov_type == 'cosmolike':
-            if self.dataset == 'DESY6':
+            if self.dataset in ['DESY6', 'DESY6_noDESI']:
                 if self.cosmology_covariance == 'mice':
                     if self.delta_theta not in [0.1, 0.2]:
                         print(f"No mice cosmolike covariance matrix for delta_theta={self.delta_theta}.")
@@ -205,6 +211,8 @@ class WThetaDataCovariance:
                         f"{self.dataset}/cov_cosmolike/cov_Y6bao_cola_deltatheta{str(self.delta_theta).replace('.', 'p')}_mask_g_area2_biasv2.txt"
                     )
                 theta_cov = np.loadtxt(f"{self.dataset}/cov_cosmolike/delta_theta_{self.delta_theta}_binning.txt")[:, 2] * np.pi / 180
+            if self.dataset == 'DESY6_noDESI':
+                cov *= 1.456
         else:
             raise NotImplementedError("Such covariance does not exist.")
 
