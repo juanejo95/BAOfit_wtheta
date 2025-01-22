@@ -234,7 +234,7 @@ class BAOFitInitializer:
         
         self.alpha_min = alpha_min
         self.alpha_max = alpha_max
-        self.Nalpha = 10**3
+        self.Nalpha = 10**4
         
         # Path to save the BAO-fit results
         self.path_baofit = self._generate_path_baofit()

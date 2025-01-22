@@ -82,25 +82,33 @@ class RedshiftDistributions:
         Generate a vector of redshift values such that the integral of n(z) over the range 
         is at least target_area.
         """
-        z_avg = self.z_average(bin_z)
-        z_min, z_max = z_avg - 0.25, z_avg + 0.25
+        zmin_full = self.nz_data[:, 0].min()
+        zmax_full = self.nz_data[:, 0].max()
+
+        delta_z = 0.01
         
-        z_values = np.linspace(z_min, z_max, Nz)
-        nz_values = self.nz_interp(z_values, bin_z)
-        integral = np.trapz(nz_values, z_values)
+        zmin = zmin_full
+        zmax = zmin + delta_z
         
-        while integral < target_area:
-            z_min -= 0.1 * (z_max - z_min)
-            z_max += 0.1 * (z_max - z_min)
-            
-            z_values = np.linspace(z_min, z_max, Nz)
+        if zmax > zmax_full:
+            raise ValueError(f"Initial zmax ({zmax:.3f}) exceeds the maximum redshift in the data ({zmax_full:.3f}).")
+    
+        while True:
+            z_values = np.linspace(zmin, zmax, Nz)
             nz_values = self.nz_interp(z_values, bin_z)
+            
             integral = np.trapz(nz_values, z_values)
+            
+            if integral >= target_area:
+                break
+            
+            zmax += delta_z
+            if zmax > zmax_full:
+                raise ValueError(f"Cannot achieve target_area ({target_area}) within the redshift range of the data.")
         
         if verbose:
-            print(f"[bin_z: {bin_z}, z_avg: {z_avg:.3f}, "
-                  f"integral of n(z) (target: {target_area}): {integral:.5f}, "
-                  f"z_range: ({z_min:.3f}, {z_max:.3f})]")
+            print(f"[bin_z: {bin_z}, zmin: {zmin:.3f}, zmax: {zmax:.3f}, "
+                  f"integral of n(z): {integral:.5f}, target: {target_area}]")
     
         return z_values
 
@@ -222,22 +230,16 @@ class WThetaDataCovariance:
         if self.cov_type == "cosmolike":
             path_cov = f"{self.dataset}/cov_{self.cov_type}"
             if self.dataset in ["DESY6", "DESY6_noDESI"]:
-                if self.cosmology_covariance == "mice":
-                    if self.delta_theta not in [0.1, 0.2]:
-                        print(f"No mice cosmolike covariance matrix for delta_theta={self.delta_theta}.")
-                        sys.exit()
-                    cov = np.loadtxt(
-                        f"{path_cov}/cov_Y6bao_data_DeltaTheta{str(self.delta_theta).replace('.', 'p')}_mask_g_mice.txt"
-                    )
-                elif self.cosmology_covariance == "planck":
-                    cov = np.loadtxt(
-                        f"{path_cov}/cov_Y6bao_data_DeltaTheta{str(self.delta_theta).replace('.', 'p')}_mask_g_planck.txt"
-                    )
+                cov = np.loadtxt(
+                    f"{path_cov}/cov_Y6bao_data_DeltaTheta{str(self.delta_theta).replace('.', 'p')}_mask_g_{self.cosmology_covariance}.txt"
+                )
             elif self.dataset == "COLAY6":
                 if self.cosmology_covariance == "mice":
                     cov = np.loadtxt(
                         f"{path_cov}/cov_Y6bao_cola_deltatheta{str(self.delta_theta).replace('.', 'p')}_mask_g_area2_biasv2.txt"
                     )
+                # if self.mock_id == "mean":
+                #     cov /= 1952
             theta_cov = np.loadtxt(f"{path_cov}/delta_theta_{self.delta_theta}_binning.txt")[:, 2] * np.pi / 180
             if self.dataset == "DESY6_noDESI":
                 cov *= 1.456
