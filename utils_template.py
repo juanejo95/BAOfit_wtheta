@@ -400,31 +400,12 @@ class WThetaCalculator:
         - xi_ell_dict (dict): Correlation function multipoles.
         - theta (float): A single value of theta (angular separation) to calculate wtheta for.
         """
-        z_values = self.redshift_distributions.z_vector(bin_z, Nz=self.Nz, verbose=False)
+        z_values = self.redshift_distributions.z_values(bin_z, Nz=self.Nz, verbose=False)
         D_values = self.cosmo.growth_factor(z_values)
         phi_values = self.redshift_distributions.nz_interp(z_values, bin_z) * D_values
         r_values = self.cosmo.comoving_radial_distance(z_values) / self.cosmo.h
         
         integrand = {component: np.zeros((len(z_values), len(z_values))) for component in self.components}
-        
-#         for i in range(len(z_values)):
-#             for j in range(len(z_values)):
-#                 if j < i:
-#                     for key in integrand.keys():
-#                         integrand[key][i, j] = integrand[key][j, i]
-#                 else:
-#                     r_12 = np.sqrt(r_values[i]**2 + r_values[j]**2 - 2 * r_values[i] * r_values[j] * np.cos(theta))
-#                     mu = (r_values[j] - r_values[i]) / r_12
-
-#                     try:
-#                         for component in self.components:
-#                             integrand[component][i, j] = phi_values[i] * phi_values[j] * sum(
-#                                 np.interp(r_12, self.r_12_vector, xi_ell_dict[f"{ell}_{component}"]) * 
-#                                 np.interp(mu, self.mu_vector, self.legendre[ell])
-#                                 for ell in self.ells
-#                             )
-#                     except ValueError:
-#                         print(f"Error for r_12={r_12}, mu={mu}")
 
         r_12_values = np.sqrt(r_values[:, None]**2 + r_values[None, :]**2 - 2 * r_values[:, None] * r_values[None, :] * np.cos(theta))
         mu_values = (r_values[None, :] - r_values[:, None]) / r_12_values

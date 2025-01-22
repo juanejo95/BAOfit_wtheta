@@ -64,18 +64,45 @@ class RedshiftDistributions:
         """Calculate the average redshift for a given bin."""
         return np.trapz(self.nz_data[:, 0] * self.nz_data[:, bin_z + 1], self.nz_data[:, 0])
 
-    def z_vector(self, bin_z, Nz=10**3, verbose=True):
-        """Generate a vector of redshift values around the average redshift."""
-        z_avg = self.z_average(bin_z)
-        z_vector = np.linspace(z_avg - 0.25, z_avg + 0.25, Nz)
-        z_values = self.nz_interp(z_vector, bin_z)
+    # def z_values(self, bin_z, Nz=10**3, verbose=True):
+    #     """Generate a vector of redshift values around the average redshift."""
+    #     z_avg = self.z_average(bin_z)
+    #     z_values = np.linspace(z_avg - 0.25, z_avg + 0.25, Nz)
+    #     nz_values = self.nz_interp(z_values, bin_z)
 
+    #     if verbose:
+    #         print(f"[bin_z: {bin_z}, z_avg: {z_avg:.3f}, "
+    #               f"integral of the n(z) (total): {np.trapz(self.nz_data[:, bin_z + 1], self.nz_data[:, 0]):.3f}, "
+    #               f"integral of the n(z) (over the z range used): {np.trapz(nz_values, z_values):.3f}]")
+
+    #     return z_values
+
+    def z_values(self, bin_z, Nz=10**3, target_area=0.99, verbose=True):
+        """
+        Generate a vector of redshift values such that the integral of n(z) over the range 
+        is at least target_area.
+        """
+        z_avg = self.z_average(bin_z)
+        z_min, z_max = z_avg - 0.25, z_avg + 0.25
+        
+        z_values = np.linspace(z_min, z_max, Nz)
+        nz_values = self.nz_interp(z_values, bin_z)
+        integral = np.trapz(nz_values, z_values)
+        
+        while integral < target_area:
+            z_min -= 0.1 * (z_max - z_min)
+            z_max += 0.1 * (z_max - z_min)
+            
+            z_values = np.linspace(z_min, z_max, Nz)
+            nz_values = self.nz_interp(z_values, bin_z)
+            integral = np.trapz(nz_values, z_values)
+        
         if verbose:
             print(f"[bin_z: {bin_z}, z_avg: {z_avg:.3f}, "
-                  f"integral of the n(z) (total): {np.trapz(self.nz_data[:, bin_z + 1], self.nz_data[:, 0]):.3f}, "
-                  f"integral of the n(z) (over the z range used): {np.trapz(z_values, z_vector):.3f}]")
-
-        return z_vector
+                  f"integral of n(z) (target: {target_area}): {integral:.5f}, "
+                  f"z_range: ({z_min:.3f}, {z_max:.3f})]")
+    
+        return z_values
 
 class WThetaDataCovariance:
     def __init__(self, dataset, weight_type, mock_id, nz_flag, cov_type, cosmology_covariance, delta_theta, 
