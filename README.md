@@ -20,7 +20,7 @@ where $z_{\rm eff}$ is the effective redshift of the galaxy sample, $D_M(z)$ is 
   
   $P(k, \mu) = (b + \mu^2 f)^2 \left[ (P_{\rm lin} - P_{\rm nw}) e^{-k^2 \Sigma^2} + P_{\rm nw} \right],$
   
-  where $b$ is the linear galaxy bias, and $f$ is the growth rate. The wiggle component is smoothed anisotropically via the damping parameter $\Sigma$. Both the wiggle and no-wiggle components of the power spectrum are computed using [`cosmoprimo`](https://github.com/cosmodesi/cosmoprimo/).
+  where $b$ is the linear galaxy bias, and $f$ is the growth rate. The wiggle component is smoothed anisotropically via $\Sigma$, which is the damping parameter. Both the wiggle and no-wiggle components of the power spectrum are computed using [`cosmoprimo`](https://github.com/cosmodesi/cosmoprimo/).
 
   The calculation of the theoretical $w(\theta)$ is split into three distinct components: one that depends quadratically on the linear galaxy bias, another one that depends linearly and one that has no dependency at all. The code saves individual files for each of these components:
 
