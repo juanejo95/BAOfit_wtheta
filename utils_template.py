@@ -3,8 +3,7 @@ import os
 import scipy
 import multiprocessing
 from functools import partial
-from cosmoprimo import Cosmology, PowerSpectrumBAOFilter
-from cosmoprimo.fiducial import DESI
+from cosmoprimo import PowerSpectrumBAOFilter
 from utils_cosmology import CosmologicalParameters
 from utils_data import RedshiftDistributions
 
@@ -83,21 +82,8 @@ class TemplateInitializer:
     
     def _initialize_cosmology(self):
         """Initialize cosmology based on the template."""
-        if self.cosmology_template == "desifid":
-            self.cosmo = DESI()
-            if self.verbose:
-                print("Initialized cosmology: DESI fiducial.")
-        else:
-            params = CosmologicalParameters(self.cosmology_template, verbose=self.verbose)
-            self.cosmo = Cosmology(
-                h=params.h,
-                Omega_cdm=params.Omega_m - params.Omega_b - params.Omega_nu_massive,
-                Omega_b=params.Omega_b,
-                sigma8=params.sigma_8,
-                n_s=params.n_s,
-                Omega_ncdm=params.Omega_nu_massive,
-                engine="class"
-            )
+        cosmology_params = CosmologicalParameters(self.cosmology_template, verbose=self.verbose)
+        self.cosmo = cosmology_params.get_cosmology()
             
     def load_pk_ell(self, bin_z):
         """
