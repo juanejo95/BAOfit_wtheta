@@ -8,7 +8,11 @@ The code implements a template-based method to model the $w(\theta)$ as
 
 $w_{\rm model}(\theta,\boldsymbol{\Theta}) = B w_{\rm ref}(\alpha \theta) + \sum_i A_i \theta^{-i},$
 
-where $B$ is the amplitude, $\alpha$ is the dilation parameter, and $A_i$ are the broad-band term parameters.
+where $B$ is the amplitude, $\alpha$ is the dilation parameter, and $A_i$ are the broad-band term parameters. The dilaton parameter can be expressed as
+
+$\alpha(z_{\rm eff})=\frac{r_d^{\rm ref}/d_A^{\rm ref}(z_{\rm eff})}{r_d/d_A(z_{\rm eff})}=\frac{r_d^{\rm ref}/d_M^{\rm ref}(z_{\rm eff})}{r_d/d_M(z_{\rm eff})}$,
+
+where $z_{\rm eff}$ is the effective redshift of the galaxy sample, $D_M(z)$ is the comoving angular diameter distance and $r_d$ is the sound horizon scale at the drag epoch.
 
 - **Theoretical Template**
   
@@ -39,3 +43,5 @@ where $B$ is the amplitude, $\alpha$ is the dilation parameter, and $A_i$ are th
 - `utils_data.py` returns the redshift distributions, data $w(\theta)$ and covariance for a given dataset.
 - `utils_template.py` computes the theoretical template for the $w(\theta)$.
 - `utils_baofit.py` runs the BAO fits.
+
+![Example of BAOfit_wtheta chi2 profile](chi2_profile_DESY6.png)
