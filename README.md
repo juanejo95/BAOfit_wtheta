@@ -28,8 +28,15 @@ where $z_{\rm eff}$ is the effective redshift of the galaxy sample, $D_M(z)$ is 
 
 - **Minimization Algorithm**
   
-  For a fixed value of $\alpha$, the amplitude parameters are estimated minimizing a $\chi^2$ function that computes analytically the broad-band term parameters at each step of the minimization process (i.e., the $A_i$ parameters are completetly determined given $\alpha$ and $B$).
-  The fit is performed using the stacking of the $w(\theta)$ for all the redshift bins and using a covariance matrix that includes cross-covariances between redshift bins.
+  The $chi^2$ depends on $\alpha$ but also on the amplitude and broad-band term parameters, $\chi^2=\chi^2(\alpha, B, A_i)$. The minimization algorithm has four steps:
+  1. The $A_i$ parameters are fit analytically, which leaves us with
+     
+     $\chi^2(\alpha, B, A_i) \to \chi^2(\alpha, B, A_{i, \rm bf}).$
+  2. We numerically search for the best-fit $B$ with the prior $B > 0$, which leaves us with
+     
+     $\chi^2(\alpha, B, A_{i, \rm bf}) \to \chi^2(\alpha, B_{\rm bf}, A_{i, \rm bf}).$
+  3. The $\chi^2$ is then sampled as a function of $\alpha$, which allows us to find the best-fit $\alpha$.
+  4. The $1-\sigma$ region of $\alpha$ is obtained with the $\Delta\chi^2 = 1$ rule.
 
 ## Features
 
@@ -43,6 +50,14 @@ where $z_{\rm eff}$ is the effective redshift of the galaxy sample, $D_M(z)$ is 
 - `utils_data.py` returns the redshift distributions, data $w(\theta)$ and covariance for a given dataset.
 - `utils_template.py` computes the theoretical template for the $w(\theta)$.
 - `utils_baofit.py` runs the BAO fits.
+
+## Requirements
+
+- numpy
+- matplotlib
+- scipy
+- pathos
+- cosmoprimo
 
 ## Examples
 
