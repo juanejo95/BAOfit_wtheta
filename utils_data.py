@@ -18,7 +18,8 @@ class RedshiftDistributions:
         self.verbose = verbose
         
         # File paths based on dataset and nz_flag
-        if self.dataset in ["DESY6", "DESY6_noDESI"]:
+        if self.dataset in ["DESY6", "DESY6_noDESI"]: # they have the same n(z), but in different paths
+            self.nz_type = "widebin"
             if self.nz_flag == "fid":
                 file_path = f"{self.dataset}/nz/nz_DNFpdf_shift_stretch_wrtclusteringz1-4_wrtVIPERS5-6_v2.txt"
                 self.z_edges = {
@@ -31,24 +32,35 @@ class RedshiftDistributions:
                 }
             else:
                 raise ValueError(f"Unknown nz_flag: {self.nz_flag} for dataset: {self.dataset}")
-        elif self.dataset == "COLAY6":
-            if self.nz_flag == "COLA":
+        elif self.dataset == "DESY6_COLA":
+            self.nz_type = "widebin"
+            if self.nz_flag == "mocks":
                 file_path = f"{self.dataset}/nz/nz_Y6COLA.txt"
                 self.z_edges = {
                     0: [0.6, 0.7], 1: [0.7, 0.8], 2: [0.8, 0.9], 3: [0.9, 1.0], 4: [1.0, 1.1], 5: [1.1, 1.2]
                 }
             else:
                 raise ValueError(f"Unknown nz_flag: {self.nz_flag} for dataset: {self.dataset}")
+        elif self.dataset == "DESIY1_LRG_Abacus":
+            self.nz_type = "thinbin"
+            if self.nz_flag == "mocks":
+                file_path = f"{self.dataset}/nz/nz_LRG_complete_0.txt"
         else:
             raise ValueError(f"Unknown dataset: {self.dataset}")
 
-        # Load the redshift data
+        # Load the redshift distributions
         try:
             self.nz_data = np.loadtxt(file_path)
         except OSError as e:
             raise FileNotFoundError(f"Error loading n(z) file for {self.dataset} with nz_flag {self.nz_flag}: {e}")
 
-        self.nbins = len(self.nz_data.T) - 1
+        if self.nz_type == "widebin":
+            self.nbins = len(self.nz_data.T) - 1
+        elif self.nz_type == "thinbin":
+            self.nz_data /= np.trapz(self.nz_data[:, 1], self.nz_data[:, 0]) # normalize to 1
+            self.nbins = len(self.nz_data)
+            z_bins = np.linspace(0.4, 0.98, self.nbins + 1)
+            self.z_edges = {bin_z: [z_bins[bin_z], z_bins[bin_z + 1]] for bin_z in range(self.nbins)}
         if self.verbose:
             print(f"Using {self.dataset} {self.nz_flag} n(z), which has {self.nbins} redshift bins")
 
@@ -58,59 +70,59 @@ class RedshiftDistributions:
 
     def nz_interp(self, z, bin_z):
         """Interpolate n(z) for a given redshift z and bin."""
-        return np.interp(z, self.nz_data[:, 0], self.nz_data[:, bin_z + 1])
+        if self.nz_type == "widebin":
+            return np.interp(z, self.nz_data[:, 0], self.nz_data[:, bin_z + 1])
+        elif self.nz_type == "thinbin":
+            z_min, z_max = self.z_edges[bin_z]
+            mask = (z_min <= z) & (z < z_max)
+            result = np.zeros_like(z, dtype=float)
+            result[mask] = self.nz_data[bin_z, 1]
+            return result if z.ndim > 0 else result.item()
 
     def z_average(self, bin_z):
         """Calculate the average redshift for a given bin."""
-        return np.trapz(self.nz_data[:, 0] * self.nz_data[:, bin_z + 1], self.nz_data[:, 0])
-
-    # def z_values(self, bin_z, Nz=10**3, verbose=True):
-    #     """Generate a vector of redshift values around the average redshift."""
-    #     z_avg = self.z_average(bin_z)
-    #     z_values = np.linspace(z_avg - 0.25, z_avg + 0.25, Nz)
-    #     nz_values = self.nz_interp(z_values, bin_z)
-
-    #     if verbose:
-    #         print(f"[bin_z: {bin_z}, z_avg: {z_avg:.3f}, "
-    #               f"integral of the n(z) (total): {np.trapz(self.nz_data[:, bin_z + 1], self.nz_data[:, 0]):.3f}, "
-    #               f"integral of the n(z) (over the z range used): {np.trapz(nz_values, z_values):.3f}]")
-
-    #     return z_values
+        if self.nz_type == "widebin":
+            return np.trapz(self.nz_data[:, 0] * self.nz_data[:, bin_z + 1], self.nz_data[:, 0])
+        elif self.nz_type == "thinbin":
+            raise NotImplementedError(f"No need to implement for dataset {self.dataset}.")
 
     def z_values(self, bin_z, Nz=10**3, target_area=0.99, verbose=True):
         """
         Generate a vector of redshift values such that the integral of n(z) over the range 
         is at least target_area.
         """
-        zmin_full = self.nz_data[:, 0].min()
-        zmax_full = self.nz_data[:, 0].max()
-
-        delta_z = 0.01
-        
-        zmin = zmin_full
-        zmax = zmin + delta_z
-        
-        if zmax > zmax_full:
-            raise ValueError(f"Initial zmax ({zmax:.3f}) exceeds the maximum redshift in the data ({zmax_full:.3f}).")
+        if self.nz_type == "widebin":
+            zmin_full = self.nz_data[:, 0].min()
+            zmax_full = self.nz_data[:, 0].max()
     
-        while True:
-            z_values = np.linspace(zmin, zmax, Nz)
-            nz_values = self.nz_interp(z_values, bin_z)
+            delta_z = 0.01
             
-            integral = np.trapz(nz_values, z_values)
+            zmin = zmin_full
+            zmax = zmin + delta_z
             
-            if integral >= target_area:
-                break
-            
-            zmax += delta_z
             if zmax > zmax_full:
-                raise ValueError(f"Cannot achieve target_area ({target_area}) within the redshift range of the data.")
+                raise ValueError(f"Initial zmax ({zmax:.3f}) exceeds the maximum redshift in the data ({zmax_full:.3f}).")
         
-        if verbose:
-            print(f"[bin_z: {bin_z}, zmin: {zmin:.3f}, zmax: {zmax:.3f}, "
-                  f"integral of n(z): {integral:.5f}, target: {target_area}]")
-    
-        return z_values
+            while True:
+                z_values = np.linspace(zmin, zmax, Nz)
+                nz_values = self.nz_interp(z_values, bin_z)
+                
+                integral = np.trapz(nz_values, z_values)
+                
+                if integral >= target_area:
+                    break
+                
+                zmax += delta_z
+                if zmax > zmax_full:
+                    raise ValueError(f"Cannot achieve target_area ({target_area}) within the redshift range of the data.")
+            
+            if verbose:
+                print(f"[bin_z: {bin_z}, zmin: {zmin:.3f}, zmax: {zmax:.3f}, "
+                      f"integral of n(z): {integral:.5f}, target: {target_area}]")
+        
+            return z_values
+        elif self.nz_type == "thinbin":
+            raise NotImplementedError(f"No need to implement for dataset {self.dataset}.")
 
 class WThetaDataCovariance:
     def __init__(self, dataset, weight_type, mock_id, nz_flag, cov_type, cosmology_covariance, delta_theta, 
@@ -121,7 +133,7 @@ class WThetaDataCovariance:
         Parameters:
         - dataset (str): Dataset identifier (e.g., "DESY6").
         - weight_type (int): Weight type (for dataset "DESY6" it should be either 1 or 0).
-        - mock_id (int): Mock id (for dataset "COLAY6" it should go from 0 to 1951).
+        - mock_id (int): Mock id (for dataset "DESY6_COLA" it should go from 0 to 1951).
         - nz_flag (str): Identifier for the n(z).
         - cov_type (str): Type of covariance.
         - cosmology_covariance (str): Cosmology for the covariance.
@@ -169,7 +181,7 @@ class WThetaDataCovariance:
                     with zf.open(file_in_zip) as filename_wtheta:
                         theta, wtheta = np.loadtxt(filename_wtheta).T[:2]
 
-            elif self.dataset == "COLAY6":
+            elif self.dataset == "DESY6_COLA":
                 if self.mock_id == "mean":
                     with zipfile.ZipFile(zip_file, "r") as zf:
                         # Find all mock files for the given redshift bin
@@ -233,7 +245,7 @@ class WThetaDataCovariance:
                 cov = np.loadtxt(
                     f"{path_cov}/cov_Y6bao_data_DeltaTheta{str(self.delta_theta).replace('.', 'p')}_mask_g_{self.cosmology_covariance}.txt"
                 )
-            elif self.dataset == "COLAY6":
+            elif self.dataset == "DESY6_COLA":
                 if self.cosmology_covariance == "mice":
                     cov = np.loadtxt(
                         f"{path_cov}/cov_Y6bao_cola_deltatheta{str(self.delta_theta).replace('.', 'p')}_mask_g_area2_biasv2.txt"

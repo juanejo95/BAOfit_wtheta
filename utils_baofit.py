@@ -200,7 +200,7 @@ class BAOFitInitializer:
         - include_wiggles (str): Whether to include BAO wiggles.
         - dataset (str): Dataset identifier (e.g., "DESY6").
         - weight_type (int): Weight type (for dataset "DESY6" it should be either 1 or 0).
-        - mock_id (int): Mock id (for dataset "COLAY6" it should go from 0 to 1951).
+        - mock_id (int): Mock id (for dataset "DESY6_COLA" it should go from 0 to 1951).
         - nz_flag (str): Identifier for the n(z).
         - cov_type (str): Type of covariance.
         - cosmology_template (str): Cosmology for the template.
@@ -253,7 +253,7 @@ class BAOFitInitializer:
                 f"thetamin{self.theta_min}_thetamax{self.theta_max}_{self.n_broadband}broadband_binsremoved{self.bins_removed}_"
                 f"alphamin{self.alpha_min}_alphamax{self.alpha_max}"
             )
-        elif self.dataset == "COLAY6":
+        elif self.dataset == "DESY6_COLA":
             path = (
                 f"{self.base_path}/fit_results{self.include_wiggles}/{self.dataset}/mock_{self.mock_id}/nz{self.nz_flag}_cov{self.cov_type}_"
                 f"{self.cosmology_template}temp_{self.cosmology_covariance}cov_deltatheta{self.delta_theta}_"

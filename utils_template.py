@@ -261,9 +261,12 @@ class PowerSpectrumMultipoles:
 
     def compute_pk_ell(self, bin_z):
         """Compute the power spectrum multipoles for a given redshift bin."""
-        z = self.redshift_distributions.z_average(bin_z)
-        f = self.cosmo.growth_rate(z)
-        Sigma_tot_vector = self.compute_sigma_tot_vector(z, f)
+        if self.redshift_distributions.nz_type == "widebin":
+            z_avg = self.redshift_distributions.z_average(bin_z)
+        elif self.redshift_distributions.nz_type == "thinbin":
+            z_avg = self.redshift_distributions.nz_data[bin_z, 0]
+        f = self.cosmo.growth_rate(z_avg)
+        Sigma_tot_vector = self.compute_sigma_tot_vector(z_avg, f)
         
         pk_ell_dict = {f"Pk_{ell}_{component}": np.zeros(len(self.k)) for ell in self.ells for component in self.components}
         
@@ -400,9 +403,11 @@ class WThetaCalculator:
         - xi_ell_dict (dict): Correlation function multipoles.
         - theta (float): A single value of theta (angular separation) to calculate wtheta for.
         """
-        z_values = self.redshift_distributions.z_values(bin_z, Nz=self.Nz, verbose=False)
-        D_values = self.cosmo.growth_factor(z_values)
-        phi_values = self.redshift_distributions.nz_interp(z_values, bin_z) * D_values
+        if self.redshift_distributions.nz_type == "widebin":
+            z_values = self.redshift_distributions.z_values(bin_z, Nz=self.Nz, verbose=False)
+        elif self.redshift_distributions.nz_type == "thinbin":
+            z_values = np.linspace(self.redshift_distributions.z_edges[bin_z][0], self.redshift_distributions.z_edges[bin_z][1], self.Nz)
+        phi_values = self.redshift_distributions.nz_interp(z_values, bin_z) * self.cosmo.growth_factor(z_values)
         r_values = self.cosmo.comoving_radial_distance(z_values) / self.cosmo.h
         
         integrand = {component: np.zeros((len(z_values), len(z_values))) for component in self.components}
