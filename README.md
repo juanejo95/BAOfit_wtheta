@@ -50,13 +50,13 @@ where $z_{\rm eff}$ is the effective redshift of the galaxy sample, $D_M(z)$ is 
 
 <p align="center">
     <img src="example_plots/wtheta_template_DESY6.png" alt="Example of BAOfit_wtheta wtheta template" width="600">
-    <p align="center"; style="font-size: 14px; width: 600px; color: gray;">Figure 1: Example of a template $w(\theta)$ computed using the DES Y6 BAO fiducial redshift distributions and Planck cosmology.</p>
+    <p align="center" style="font-size: 14px; color: gray;"><strong>Figure 1:</strong> Example of a template $w(\theta)$ computed using the DES Y6 BAO<br>fiducial redshift distributions and Planck cosmology.</p>
 </p>
 
 - $\chi^2$ profile
 
 <p align="center">
     <img src="example_plots/chi2_profile_DESY6.png" alt="Example of BAOfit_wtheta chi2 profile" width="600">
-    <p align="center"; style="font-size: 14px; width: 600px; color: gray;">Figure 2: Example of a $\chi^2$ profile using DES Y6 as dataset.</p>
+    <p align="center"; style="font-size: 14px; color: gray;"><strong>Figure 2:</strong> Example of a $\chi^2$ profile using DES Y6 as dataset.</p>
 </p>
 
