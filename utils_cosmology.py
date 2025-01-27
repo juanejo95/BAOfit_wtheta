@@ -12,7 +12,7 @@ class CosmologicalParameters:
         """
         if cosmology_template == "planck":
             H_0 = 67.6  # Hubble constant in km/s/Mpc
-            h = H_0 / 100.0
+            h = H_0 / 100
 
             Omega_b = 0.022 / h**2
             Omega_m = 0.31
@@ -31,12 +31,12 @@ class CosmologicalParameters:
                 sigma8=sigma_8,
                 n_s=n_s,
                 Omega_ncdm=Omega_nu_massive,
-                engine="class"  # Assuming you're using CLASS as the backend
+                engine="class"
             )
 
         elif cosmology_template == "mice":
             H_0 = 70.0  # Hubble constant in km/s/Mpc
-            h = H_0 / 100.0
+            h = H_0 / 100
 
             Omega_b = 0.044
             Omega_m = 0.25
@@ -45,7 +45,7 @@ class CosmologicalParameters:
             n_s = 0.95
             sigma_8 = 0.8
 
-            Omega_nu_massive = 0.0
+            Omega_nu_massive = 0
             num_nu_massive = 0
 
             self.cosmo = Cosmology(
@@ -55,7 +55,7 @@ class CosmologicalParameters:
                 sigma8=sigma_8,
                 n_s=n_s,
                 Omega_ncdm=Omega_nu_massive,
-                engine="class"  # Assuming you're using CLASS as the backend
+                engine="class"
             )
 
         elif cosmology_template == "desifid":
