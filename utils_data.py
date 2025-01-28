@@ -140,7 +140,7 @@ class WThetaDataCovariance:
         - delta_theta (float): Delta theta value.
         - theta_min (float): Minimum theta value.
         - theta_max (float): Maximum theta value.
-        - bins_removed (str): Redshift bins removed when running the BAO fit.
+        - bins_removed (list): Redshift bins removed when running the BAO fit.
         - diag_only (str): Whether to keep only the diagonal of the covariance.
         - remove_crosscov (str): Whether to remove the cross-covariances between redshift bins.
         """

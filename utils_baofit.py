@@ -209,7 +209,7 @@ class BAOFitInitializer:
         - theta_min (float): Minimum theta value.
         - theta_max (float): Maximum theta value.
         - n_broadband (int): Number of broadband parameters.
-        - bins_removed (str): Redshift bins removed when running the BAO fit.
+        - bins_removed (list): Redshift bins removed when running the BAO fit.
         - verbose (bool): Whether to print messages.
         - base_path (str): Path to save the results.
         """
