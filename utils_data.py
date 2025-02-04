@@ -57,7 +57,7 @@ class RedshiftDistributions:
         if self.nz_type == "widebin":
             self.nbins = len(self.nz_data.T) - 1
         elif self.nz_type == "thinbin":
-            self.nz_data /= np.trapz(self.nz_data[:, 1], self.nz_data[:, 0]) # normalize to 1
+            self.nz_data[:, 1] /= np.trapz(self.nz_data[:, 1], self.nz_data[:, 0]) # normalize to 1
             self.nbins = len(self.nz_data)
             z_bins = np.linspace(0.4, 0.98, self.nbins + 1)
             self.z_edges = {bin_z: [z_bins[bin_z], z_bins[bin_z + 1]] for bin_z in range(self.nbins)}
