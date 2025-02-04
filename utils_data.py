@@ -76,7 +76,7 @@ class RedshiftDistributions:
             z_min, z_max = self.z_edges[bin_z]
             mask = (z_min <= z) & (z < z_max)
             result = np.zeros_like(z, dtype=float)
-            result[mask] = self.nz_data[bin_z, 1]
+            result[mask] = 1 / (z_max - z_min) # it is just a top hat function
             return result if z.ndim > 0 else result.item()
 
     def z_average(self, bin_z):
