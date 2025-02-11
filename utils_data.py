@@ -57,9 +57,11 @@ class RedshiftDistributions:
         if self.nz_type == "widebin":
             self.nbins = len(self.nz_data.T) - 1
         elif self.nz_type == "thinbin":
-            self.nz_data[:, 1] /= np.trapz(self.nz_data[:, 1], self.nz_data[:, 0]) # normalize to 1
+            self.nz_data[:, 1] /= np.trapz(self.nz_data[:, 1], self.nz_data[:, 0]) # normalize to 1. We don't actually use it but just in case
             self.nbins = len(self.nz_data)
-            z_bins = np.linspace(0.4, 0.98, self.nbins + 1)
+            z_centers = self.nz_data[:, 0]
+            z_bins = (z_centers[:-1] + z_centers[1:]) / 2
+            z_bins = np.concatenate([[2 * z_centers[0] - z_bins[0]], z_bins, [2 * z_centers[-1] - z_bins[-1]]])
             self.z_edges = {bin_z: [z_bins[bin_z], z_bins[bin_z + 1]] for bin_z in range(self.nbins)}
         if self.verbose:
             print(f"Using {self.dataset} {self.nz_flag} n(z), which has {self.nbins} redshift bins")
