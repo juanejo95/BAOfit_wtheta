@@ -57,7 +57,7 @@ class TemplateInitializer:
         self.components = ["bb", "bf", "ff"]
         
         # Path to save the templates
-        self.path_template = f"{self.base_path}/wtheta_template{self.include_wiggles}/{self.dataset}/nz_{self.nz_flag}/wtheta_{self.cosmology_template}"
+        self.path_template = f"{self.base_path}/templates/wtheta_template{self.include_wiggles}/{self.dataset}/nz_{self.nz_flag}/wtheta_{self.cosmology_template}"
         
         # Make sure the directory exists
         os.makedirs(self.path_template, exist_ok=True)

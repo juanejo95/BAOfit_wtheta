@@ -21,38 +21,38 @@ class RedshiftDistributions:
         if self.dataset in ["DESY6", "DESY6_noDESI_-23.5", "DESY6_DESI_-23.5"]: # they have the same n(z), but in different paths
             self.nz_type = "widebin"
             if self.nz_flag == "fid":
-                file_path = f"{self.dataset}/nz/nz_DNFpdf_shift_stretch_wrtclusteringz1-4_wrtVIPERS5-6_v2.txt"
+                file_path = f"datasets/{self.dataset}/nz/nz_DNFpdf_shift_stretch_wrtclusteringz1-4_wrtVIPERS5-6_v2.txt"
                 self.z_edges = {
                     0: [0.6, 0.7], 1: [0.7, 0.8], 2: [0.8, 0.9], 3: [0.9, 1.0], 4: [1.0, 1.1], 5: [1.1, 1.2]
                 }
             elif nz_flag == "clusteringz":
-                file_path = f"{self.dataset}/nz/nz_clusteringz.txt"
+                file_path = f"datasets/{self.dataset}/nz/nz_clusteringz.txt"
                 self.z_edges = {
                     0: [0.6, 0.7], 1: [0.7, 0.8], 2: [0.8, 0.9], 3: [0.9, 1.0]
                 }
             else:
-                raise ValueError(f"Unknown nz_flag: {self.nz_flag} for dataset: {self.dataset}")
+                raise ValueError(f"Unknown nz_flag: {self.nz_flag} for dataset: datasets/{self.dataset}")
         elif self.dataset == "DESY6_COLA":
             self.nz_type = "widebin"
             if self.nz_flag == "mocks":
-                file_path = f"{self.dataset}/nz/nz_Y6COLA.txt"
+                file_path = f"datasets/{self.dataset}/nz/nz_Y6COLA.txt"
                 self.z_edges = {
                     0: [0.6, 0.7], 1: [0.7, 0.8], 2: [0.8, 0.9], 3: [0.9, 1.0], 4: [1.0, 1.1], 5: [1.1, 1.2]
                 }
             else:
-                raise ValueError(f"Unknown nz_flag: {self.nz_flag} for dataset: {self.dataset}")
+                raise ValueError(f"Unknown nz_flag: {self.nz_flag} for dataset: datasets/{self.dataset}")
         elif self.dataset == "DESIY1_LRG_Abacus":
             self.nz_type = "thinbin"
             if self.nz_flag == "mocks":
-                file_path = f"{self.dataset}/nz/nz_LRG_complete_0.txt"
+                file_path = f"datasets/{self.dataset}/nz/nz_LRG_complete_0.txt"
         else:
-            raise ValueError(f"Unknown dataset: {self.dataset}")
+            raise ValueError(f"Unknown dataset: datasets/{self.dataset}")
 
         # Load the redshift distributions
         try:
             self.nz_data = np.loadtxt(file_path)
         except OSError as e:
-            raise FileNotFoundError(f"Error loading n(z) file for {self.dataset} with nz_flag {self.nz_flag}: {e}")
+            raise FileNotFoundError(f"Error loading n(z) file for datasets/{self.dataset} with nz_flag {self.nz_flag}: {e}")
 
         if self.nz_type == "widebin":
             self.nbins = len(self.nz_data.T) - 1
@@ -64,11 +64,11 @@ class RedshiftDistributions:
             z_bins = np.concatenate([[2 * z_centers[0] - z_bins[0]], z_bins, [2 * z_centers[-1] - z_bins[-1]]])
             self.z_edges = {bin_z: [z_bins[bin_z], z_bins[bin_z + 1]] for bin_z in range(self.nbins)}
         if self.verbose:
-            print(f"Using {self.dataset} {self.nz_flag} n(z), which has {self.nbins} redshift bins")
+            print(f"Using datasets/{self.dataset} {self.nz_flag} n(z), which has {self.nbins} redshift bins")
 
     def __repr__(self):
         """String representation for debugging."""
-        return f"RedshiftDistributions(dataset={self.dataset}, nz_flag={self.nz_flag}, nbins={self.nbins}, edges={self.z_edges})"
+        return f"RedshiftDistributions(dataset=datasets/{self.dataset}, nz_flag={self.nz_flag}, nbins={self.nbins}, edges={self.z_edges})"
 
     def nz_interp(self, z, bin_z):
         """Interpolate n(z) for a given redshift z and bin."""
@@ -86,7 +86,7 @@ class RedshiftDistributions:
         if self.nz_type == "widebin":
             return np.trapz(self.nz_data[:, 0] * self.nz_data[:, bin_z + 1], self.nz_data[:, 0])
         elif self.nz_type == "thinbin":
-            raise NotImplementedError(f"No need to implement for dataset {self.dataset}.")
+            raise NotImplementedError(f"No need to implement for dataset datasets/{self.dataset}.")
 
     def z_values(self, bin_z, Nz=10**3, target_area=0.99, verbose=True):
         """
@@ -124,7 +124,7 @@ class RedshiftDistributions:
         
             return z_values
         elif self.nz_type == "thinbin":
-            raise NotImplementedError(f"No need to implement for dataset {self.dataset}.")
+            raise NotImplementedError(f"No need to implement for dataset datasets/{self.dataset}.")
 
 class WThetaDataCovariance:
     def __init__(self, dataset, weight_type, mock_id, nz_flag, cov_type, cosmology_covariance, delta_theta, 
@@ -168,7 +168,7 @@ class WThetaDataCovariance:
         theta_wtheta_data = {}
         wtheta_data = {}
         
-        zip_file = f"{self.dataset}/wtheta/wtheta.zip"
+        zip_file = f"datasets/{self.dataset}/wtheta/wtheta.zip"
         
         for bin_z in range(self.nbins):
             if self.dataset == "DESY6":
@@ -242,7 +242,7 @@ class WThetaDataCovariance:
 
     def load_covariance_matrix(self, indices_theta_allbins_concatenated, theta_wtheta_data_concatenated):
         if self.cov_type == "cosmolike":
-            path_cov = f"{self.dataset}/cov_{self.cov_type}"
+            path_cov = f"datasets/{self.dataset}/cov_{self.cov_type}"
             if self.dataset in ["DESY6", "DESY6_noDESI_-23.5", "DESY6_DESI_-23.5"]:
                 cov = np.loadtxt(
                     f"{path_cov}/cov_Y6bao_data_DeltaTheta{str(self.delta_theta).replace('.', 'p')}_mask_g_{self.cosmology_covariance}.txt"

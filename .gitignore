@@ -2,12 +2,10 @@
 **/__pycache__/
 **/OLD/
 
-**/fit_results
-**/fit_results_nowiggles
-**/wtheta_template
-**/wtheta_template_nowiggles
+**/results
+**/templates
 
-DESY6_noDESI_-23.5/wtheta/wtheta.zip
-DESY6_DESI_-23.5/wtheta/wtheta.zip
+datasets/DESY6_noDESI_-23.5/wtheta/wtheta.zip
+datasets/DESY6_DESI_-23.5/wtheta/wtheta.zip
 
 **/scripts
