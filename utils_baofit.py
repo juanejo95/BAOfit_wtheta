@@ -101,7 +101,7 @@ class WThetaModel:
         self.galaxy_bias = galaxy_bias
         
         if base_path is None:
-            base_path = f"{os.environ['HOME']}/BAOfit_wtheta"
+            base_path = f"{os.environ['PSCRATCH']}/BAOfit_wtheta"
         self.base_path = base_path
         
         self.template_initializer = TemplateInitializer(
@@ -226,7 +226,7 @@ class BAOFitInitializer:
         self.verbose = verbose
         
         if base_path is None:
-            base_path = f"{os.environ['HOME']}/BAOfit_wtheta"
+            base_path = f"{os.environ['PSCRATCH']}/BAOfit_wtheta"
         self.base_path = base_path
         
         self.alpha_min = alpha_min
