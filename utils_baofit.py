@@ -115,16 +115,13 @@ class WThetaModel:
         self.nbins = self.template_initializer.nbins
         self.z_edges = self.template_initializer.z_edges
 
-        # Predefined values based on the given context
-        self.names_params = np.array([
-            "alpha", "A_0", "B_0", "C_0", "D_0", "E_0", "F_0", "G_0", 
-            "A_1", "B_1", "C_1", "D_1", "E_1", "F_1", "G_1", 
-            "A_2", "B_2", "C_2", "D_2", "E_2", "F_2", "G_2", 
-            "A_3", "B_3", "C_3", "D_3", "E_3", "F_3", "G_3", 
-            "A_4", "B_4", "C_4", "D_4", "E_4", "F_4", "G_4", 
-            "A_5", "B_5", "C_5", "D_5", "E_5", "F_5", "G_5"
-        ])
-        self.n_broadband_max = int((len(self.names_params) - 1) / 6 - 1)  # This should be 6 (from B to G)
+        letters = list("ABCDEFG")  # Letters from A to G (depending on the number of broadband-term parameters)
+        params = ["alpha"]
+        for i in range(self.nbins):
+            params.extend([f"{letter}_{i}" for letter in letters])
+        self.names_params =  np.array(params)
+
+        self.n_broadband_max = int((len(self.names_params) - 1) / self.nbins - 1)  # This should be 6 (from B to G, since A is the amplitude)
         self.n_params_max = len(self.names_params)
 
         # Prepare the index array
@@ -254,6 +251,13 @@ class BAOFitInitializer:
                 f"alphamin{self.alpha_min}_alphamax{self.alpha_max}"
             )
         elif self.dataset == "DESY6_COLA":
+            path = (
+                f"{self.base_path}/results/fit_results{self.include_wiggles}/{self.dataset}/mock_{self.mock_id}/nz{self.nz_flag}_cov{self.cov_type}_"
+                f"{self.cosmology_template}temp_{self.cosmology_covariance}cov_deltatheta{self.delta_theta}_"
+                f"thetamin{self.theta_min}_thetamax{self.theta_max}_{self.n_broadband}broadband_binsremoved{self.bins_removed}_"
+                f"alphamin{self.alpha_min}_alphamax{self.alpha_max}"
+            )
+        elif self.dataset == "DESIY1_LRG_EZ":
             path = (
                 f"{self.base_path}/results/fit_results{self.include_wiggles}/{self.dataset}/mock_{self.mock_id}/nz{self.nz_flag}_cov{self.cov_type}_"
                 f"{self.cosmology_template}temp_{self.cosmology_covariance}cov_deltatheta{self.delta_theta}_"
@@ -436,7 +440,10 @@ class BAOFit:
                 )
                 ax.set_ylabel(r"$10^2 \times \theta^2w(\theta)$", fontsize=13)
                 z_edge = self.z_edges[bin_z]
-                ax.text(0.13, 0.1, f"{z_edge[0]} $< z <$ {z_edge[1]}", ha="center", va="center", transform=ax.transAxes, fontsize=18)
+                if self.dataset not in ["DESIY1_LRG_EZ"]:
+                    ax.text(0.13, 0.1, f"{z_edge[0]} $< z <$ {z_edge[1]}", ha="center", va="center", transform=ax.transAxes, fontsize=18)
+                else:
+                    ax.text(0.13, 0.1, f"{z_edge[0]:.2f} $< z <$ {z_edge[1]:.2f}", ha="center", va="center", transform=ax.transAxes, fontsize=18)
                 if bin_z == 0:
                     ax.legend(loc="upper left", fontsize=13)
                 if bin_z == self.nbins - 1:

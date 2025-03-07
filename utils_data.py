@@ -41,10 +41,10 @@ class RedshiftDistributions:
                 }
             else:
                 raise ValueError(f"Unknown nz_flag: {self.nz_flag} for dataset: datasets/{self.dataset}")
-        elif self.dataset == "DESIY1_LRG_Abacus":
+        elif self.dataset in ["DESIY1_LRG_Abacus", "DESIY1_LRG_EZ"]:
             self.nz_type = "thinbin"
             if self.nz_flag == "mocks":
-                file_path = f"datasets/{self.dataset}/nz/nz_LRG_complete_0.txt"
+                file_path = f"datasets/{self.dataset}/nz/mean_nzs.txt"
         else:
             raise ValueError(f"Unknown dataset: datasets/{self.dataset}")
 
@@ -212,7 +212,43 @@ class WThetaDataCovariance:
                     with zipfile.ZipFile(zip_file, "r") as zf:
                         with zf.open(file_in_zip) as filename_wtheta:
                             theta, wtheta = np.loadtxt(filename_wtheta).T
-
+                            
+            elif self.dataset == "DESIY1_LRG_EZ":
+                if self.mock_id == "mean":
+                    with zipfile.ZipFile(zip_file, "r") as zf:
+                        # pattern = re.compile(r"deltaz0p02_deltath0p4_thetacuts/twoangcorr_mock_\d+\.npz")
+                        pattern = re.compile(r"twoangcorr_mock_\d+\.npz")
+                        mock_files = [name for name in zf.namelist() if pattern.match(name)]
+            
+                        if bin_z == 0:
+                            print(f"Averaging the w(theta) over {len(mock_files)} mocks!")
+            
+                        all_wtheta = []
+                        theta = None
+            
+                        for mock_file in mock_files:
+                            with zf.open(mock_file) as file:
+                                npz_data = np.load(file)
+            
+                                wtheta_mock = npz_data.get(f"z{bin_z+1}")
+            
+                                if theta is None:
+                                    theta = npz_data.get("theta") * np.pi / 180
+            
+                                all_wtheta.append(wtheta_mock)
+            
+                        wtheta = np.mean(all_wtheta, axis=0)
+            
+                else:
+                    # file_in_zip = f"deltaz0p02_deltath0p4_thetacuts/twoangcorr_mock_{self.mock_id}.npz"
+                    file_in_zip = f"twoangcorr_mock_{self.mock_id}.npz"
+            
+                    with zipfile.ZipFile(zip_file, "r") as zf:
+                        with zf.open(file_in_zip) as filename_wtheta:
+                            npz_data = np.load(filename_wtheta)
+            
+                            wtheta = npz_data.get(f"z{bin_z+1}")
+                            theta = npz_data.get("theta") * np.pi / 180
 
             indices_theta_individualbin = np.where((theta > self.theta_min * np.pi / 180) &
                                                    (theta < self.theta_max * np.pi / 180))[0]
@@ -259,6 +295,12 @@ class WThetaDataCovariance:
                 cov *= 1.456
             elif self.dataset == "DESY6_DESI_-23.5":
                 cov *= 3.193
+
+        elif self.cov_type == "mocks":
+            path_cov = f"datasets/{self.dataset}/cov_{self.cov_type}"
+            if self.dataset == "DESIY1_LRG_EZ":
+                cov = np.loadtxt(f"{path_cov}/EZcovariance_matrix.txt")
+                theta_cov = np.loadtxt(f"{path_cov}/theta.txt") * np.pi / 180
         else:
             raise NotImplementedError("Such covariance does not exist.")
 
