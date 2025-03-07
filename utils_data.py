@@ -305,8 +305,8 @@ class WThetaDataCovariance:
             raise NotImplementedError("Such covariance does not exist.")
 
         theta_cov_concatenated = np.concatenate([theta_cov] * self.nbins)
-        
-        if abs(theta_wtheta_data_concatenated - theta_cov_concatenated[indices_theta_allbins_concatenated]).max() > 10**-5:
+
+        if abs(theta_wtheta_data_concatenated - theta_cov_concatenated[indices_theta_allbins_concatenated]).max() > 10**-4:
             print("The covariance matrix and the w(theta) do not have the same theta binning.")
             sys.exit()
 

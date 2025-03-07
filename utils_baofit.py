@@ -425,29 +425,35 @@ class BAOFit:
                     self.theta_data * 180 / np.pi,
                     100 * (self.theta_data * 180 / np.pi) ** 2 * self.wtheta_data[bin_z],
                     yerr=100 * (self.theta_data * 180 / np.pi) ** 2 * np.sqrt(np.diag(self.cov))[bin_z * len(self.theta_data):(bin_z + 1) * len(self.theta_data)],
-                    fmt=".", capsize=3, 
+                    capsize=4, capthick=1.5,
+                    marker="D", markersize=6, markerfacecolor="lightblue", markeredgewidth=1.2,
+                    markeredgecolor="dodgerblue", ecolor="dodgerblue", linestyle="none",
                     label=self.dataset + " data"
                 )
                 ax.plot(
                     theta_data_interp * 180 / np.pi, 
                     100 * (theta_data_interp * 180 / np.pi) ** 2 * self.wtheta_model.wtheta_th_interp[bin_z](theta_data_interp),
+                    color="red", linestyle="--",
                     label="template"
                 )
                 ax.plot(
                     theta_data_interp * 180 / np.pi, 
                     100 * (theta_data_interp * 180 / np.pi) ** 2 * wtheta_fit_best[bin_z * len(theta_data_interp):(bin_z + 1) * len(theta_data_interp)],
+                    color="black",
                     label="best fit"
                 )
-                ax.set_ylabel(r"$10^2 \times \theta^2w(\theta)$", fontsize=13)
+                ax.set_ylabel(r"$10^2 \times \theta^2w(\theta)$", fontsize=22)
+                ax.tick_params(axis="x", labelsize=18)
+                ax.tick_params(axis="y", labelsize=18)
                 z_edge = self.z_edges[bin_z]
                 if self.dataset not in ["DESIY1_LRG_EZ"]:
                     ax.text(0.13, 0.1, f"{z_edge[0]} $< z <$ {z_edge[1]}", ha="center", va="center", transform=ax.transAxes, fontsize=18)
                 else:
                     ax.text(0.13, 0.1, f"{z_edge[0]:.2f} $< z <$ {z_edge[1]:.2f}", ha="center", va="center", transform=ax.transAxes, fontsize=18)
                 if bin_z == 0:
-                    ax.legend(loc="upper left", fontsize=13)
+                    ax.legend(loc="upper left", fontsize=18)
                 if bin_z == self.nbins - 1:
-                    ax.set_xlabel(r"$\theta$ (deg)", fontsize=13)
+                    ax.set_xlabel(r"$\theta$ (deg)", fontsize=22)
             plt.tight_layout()
             plt.savefig(self.path_baofit + "/wtheta_data_bestfit.png", bbox_inches="tight")
             if self.close_fig:
