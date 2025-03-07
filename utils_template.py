@@ -42,7 +42,7 @@ class TemplateInitializer:
         self.verbose = verbose
         
         if base_path is None:
-            base_path = f"{os.environ['HOME']}/BAOfit_wtheta"
+            base_path = f"{os.environ['PSCRATCH']}/BAOfit_wtheta"
         self.base_path = base_path
         
         self.mu_vector = np.linspace(-1, 1, self.Nmu)

@@ -28,7 +28,7 @@ class WThetaModelGalaxyBias:
         self.cosmology_template = cosmology_template
 
         if base_path is None:
-            base_path = f"{os.environ['HOME']}/BAOfit_wtheta"
+            base_path = f"{os.environ['PSCRATCH']}/BAOfit_wtheta"
         self.base_path = base_path
 
         # Initialize template data
