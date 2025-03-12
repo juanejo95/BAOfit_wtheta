@@ -141,7 +141,7 @@ class TemplateInitializer:
         - bin_z (int): Redshift bin number.
         """
         if self.verbose:
-            print(f"{bin_z} - Attempting to load precomputed wtheta...")
+            print(f"{bin_z} - Attempting to load precomputed w(theta)...")
 
         wtheta_dict = {}
         try:
@@ -155,6 +155,29 @@ class TemplateInitializer:
             raise
 
         return wtheta_dict
+
+    def load_C_ell(self, bin_z):
+        """
+        Load precomputed C_ell for a given redshift bin.
+
+        Parameters:
+        - bin_z (int): Redshift bin number.
+        """
+        if self.verbose:
+            print(f"{bin_z} - Attempting to load precomputed C_ell...")
+
+        C_ell_dict = {}
+        try:
+            C_ell_dict = {
+                component: np.loadtxt(f"{self.path_template}/C_ell_{component}_bin{bin_z}.txt")
+                for component in self.components
+            }
+        except FileNotFoundError as e:
+            print(f"Error: {e}")
+            print("Precomputed C_ell files do not exist. Please, compute them first.")
+            raise
+
+        return C_ell_dict
 
 class PowerSpectrumMultipoles:
     def __init__(self, template_initializer):
@@ -429,7 +452,7 @@ class WThetaCalculator:
 
     def compute_wtheta(self, bin_z):
         """
-        Compute and save wtheta for a given redshift bin.
+        Compute and save the w(theta) for a given redshift bin.
 
         Parameters:
         - bin_z (int): Redshift bin number.
@@ -460,3 +483,83 @@ class WThetaCalculator:
         
         print(f"{bin_z} - w(theta) computed!")
         return wtheta_dict
+
+class CellCalculator:
+    def __init__(self, template_initializer):
+        """
+        Initialize the C_ellCalculator class.
+
+        Parameters:
+        - template_initializer: Instance of the TemplateInitializer class.
+        """
+        self.template_initializer = template_initializer
+        self.nbins = self.template_initializer.nbins
+        self.n_cpu = self.template_initializer.n_cpu
+        self.use_multiprocessing = self.template_initializer.use_multiprocessing
+        self.path_template = self.template_initializer.path_template
+        self.components = self.template_initializer.components
+        
+        self.max_ell = 10**4 # why not
+        self.ell = range(self.max_ell)
+
+        self.wtheta_interp = {component: {} for component in self.components}
+        self.theta = None
+        self.sin_theta = None
+        self.cos_theta = None
+
+        self._load_and_interpolate_wtheta()
+
+    def _load_and_interpolate_wtheta(self):
+        """
+        Load and interpolate wtheta for all redshift bins.
+        """
+        theta = self.template_initializer.load_wtheta(0)[self.components[0]][:, 0]
+        self.theta = 10**np.linspace(np.log10(theta.min() * 1.0001), np.log10(theta.max() * 0.999), 10**5)
+        self.sin_theta = np.sin(self.theta)
+        self.cos_theta = np.cos(self.theta)
+
+        for bin_z in range(self.nbins):
+            wtheta_dict = self.template_initializer.load_wtheta(bin_z)
+            for component in self.components:
+                wtheta_interp_fun = scipy.interpolate.interp1d(theta, wtheta_dict[component][:, 1], kind='linear')
+                self.wtheta_interp[component][bin_z] = wtheta_interp_fun(self.theta)
+
+    def C_ell_calculator(self, bin_z, ell):
+        """
+        Calculate C_ell for a given redshift bin and single value of ell.
+        """
+        legendre = scipy.special.eval_legendre(ell, self.cos_theta)
+        C_ell_dict = {
+            component: 2 * np.pi * np.trapz(self.sin_theta * self.wtheta_interp[component][bin_z] * legendre, self.theta)
+            for component in self.components
+        }
+        return C_ell_dict
+
+    def compute_C_ell(self, bin_z):
+        """
+        Compute and save the C_ell for a given redshift bin.
+        """
+        print(f"{bin_z} - Computing C_ell...")
+        if self.use_multiprocessing:
+            print(f"WARNING: C_ell will be computed for all ell values in parallel using {self.n_cpu} CPUs!")
+            with multiprocessing.Pool(self.n_cpu) as pool:
+                C_dict = pool.map(partial(self.C_ell_calculator, bin_z), self.ell)
+        else:
+            raise NotImplementedError("Sequential computation of C_ell without multiprocessing is not implemented.")
+
+        C_ell_dict = {
+            component: np.array([C_dict[i][component] for i in range(len(self.ell))])
+            for component in self.components
+        }
+        
+        for component in self.components:
+            np.savetxt(
+                f"{self.path_template}/C_ell_{component}_bin{bin_z}.txt", 
+                np.column_stack([
+                    self.ell, 
+                    C_ell_dict[component]
+                ])
+            )
+        
+        print(f"{bin_z} - C_ell computed!")
+        return C_ell_dict
