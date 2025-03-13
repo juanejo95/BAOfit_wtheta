@@ -428,7 +428,8 @@ class BAOFit:
                     capsize=4, capthick=1.5,
                     marker="D", markersize=6, markerfacecolor="lightblue", markeredgewidth=1.2,
                     markeredgecolor="dodgerblue", ecolor="dodgerblue", linestyle="none",
-                    label=self.dataset + " data"
+                    label=self.dataset + " data",
+                    zorder=-1000
                 )
                 ax.plot(
                     theta_data_interp * 180 / np.pi, 
