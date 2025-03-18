@@ -332,6 +332,12 @@ class WThetaDataCovariance:
         cov_orig = np.copy(cov)
         cov = cov_orig[indices_theta_allbins_concatenated[:, None], indices_theta_allbins_concatenated]
 
+        # if self.cov_type == "mocks":
+        #     if self.dataset == "DESIY1_LRG_EZ":
+        #         print("Applying the Hartlap correction to the covariance matrix from the mocks")
+        #         hartlap = (1000 - len(cov) - 2) / (1000 - 1)
+        #         cov /= hartlap
+        
         return cov
 
     def process(self):
