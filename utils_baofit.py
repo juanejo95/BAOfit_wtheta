@@ -231,7 +231,7 @@ class BAOFitInitializer:
         
         self.alpha_min = alpha_min
         self.alpha_max = alpha_max
-        self.Nalpha = 10**4
+        self.Nalpha = 10**3
         
         # Path to save the BAO-fit results
         self.path_baofit = self._generate_path_baofit()
@@ -376,8 +376,8 @@ class BAOFit:
             return chi2_value
         
         if self.use_multiprocessing:
-            with Pool(self.n_cpu) as pool: # using multiprocessing with pathos...
-                chi2_vector = np.array(pool.map(compute_chi2, alpha_vector))
+            with Pool(self.n_cpu) as pool:
+                chi2_vector = np.array(pool.map(compute_chi2, alpha_vector, chunksize=len(alpha_vector) // self.n_cpu))
         else:
             chi2_vector = np.array([compute_chi2(alpha) for alpha in alpha_vector])
             
@@ -473,7 +473,7 @@ class BAOFit:
 
             # Plot the chi2 vs alpha
             fig, ax = plt.subplots(figsize=(6, 5))
-            ax.plot(alpha_vector, chi2_vector, color="blue", lw=2, label=r"$\chi^2$ profile")
+            ax.plot(alpha_vector, chi2_vector, color="dodgerblue", lw=2, label=r"$\chi^2$ profile")
             ax.axhline(chi2_best + 1, color="black", linestyle="--", linewidth=1, label=r"$\chi^2_{\mathrm{min}} + 1$")
             ax.plot(alpha_best, chi2_best, "d", color="orange", markersize=8, label=fr"$\alpha = {alpha_best:.4f}$")
             ax.axvspan(alpha_down, alpha_up, color="k", alpha=0.1, label=fr"$\sigma_\alpha = {err_alpha:.4f}$")
@@ -495,7 +495,7 @@ class BAOFit:
             
             # Plot the chi2 vs alpha
             fig, ax = plt.subplots(figsize=(6, 5))
-            ax.plot(alpha_vector, chi2_vector, color="blue", lw=2, label=r"$\chi^2$ profile")
+            ax.plot(alpha_vector, chi2_vector, color="dodgerblue", lw=2, label=r"$\chi^2$ profile")
             ax.axhline(chi2_best + 1, color="black", linestyle="--", linewidth=1, label=r"$\chi^2_{\mathrm{min}} + 1$")
             ax.plot(alpha_best, chi2_best, "d", color="orange", markersize=8, label=fr"$\alpha = {alpha_best:.4f}$")
             ax.set_xlim(self.alpha_min, self.alpha_max)

@@ -4,6 +4,7 @@ import scipy
 import multiprocessing
 from functools import partial
 from cosmoprimo import PowerSpectrumBAOFilter
+from pathos.multiprocessing import ProcessingPool as Pool
 from utils_cosmology import CosmologicalParameters
 from utils_data import RedshiftDistributions
 
@@ -282,8 +283,8 @@ class PowerSpectrumMultipoles:
         print(f"{bin_z} - Computing Pk_ell...")
         if self.use_multiprocessing:
             print(f"WARNING: P_ell(k) will be computed for all k values in parallel using {self.n_cpu} CPUs!")
-            with multiprocessing.Pool(self.n_cpu) as pool:
-                pk_dict = pool.map(partial(self.compute_pk_ell_singlek, bin_z, f, Sigma_tot_vector), range(len(self.k)))
+            with Pool(self.n_cpu) as pool:
+                pk_dict = pool.map(partial(self.compute_pk_ell_singlek, bin_z, f, Sigma_tot_vector), range(len(self.k)), chunksize=len(self.k) // self.n_cpu)
         else:
             raise NotImplementedError("Sequential computation of P(k) multipoles without multiprocessing is not implemented.")
 
@@ -361,8 +362,8 @@ class CorrelationFunctionMultipoles:
         print(f"{bin_z} - Computing xi_ell...")
         if self.use_multiprocessing:
             print(f"WARNING: xi_ell(r) will be computed for all r values in parallel using {self.n_cpu} CPUs!")
-            with multiprocessing.Pool(self.n_cpu) as pool:
-                xi_dict = pool.map(partial(self.compute_xi_ell_singler, pk_ell_dict), self.r_12_vector)
+            with Pool(self.n_cpu) as pool:
+                xi_dict = pool.map(partial(self.compute_xi_ell_singler, pk_ell_dict), self.r_12_vector, chunksize=len(self.r_12_vector) // self.n_cpu)
         else:
             raise NotImplementedError("Sequential computation of xi(r) multipoles without multiprocessing is not implemented.")
 
@@ -462,8 +463,8 @@ class WThetaCalculator:
         print(f"{bin_z} - Computing w(theta)...")
         if self.use_multiprocessing:
             print(f"WARNING: w(theta) will be computed for all theta values in parallel using {self.n_cpu} CPUs!")
-            with multiprocessing.Pool(self.n_cpu) as pool:
-                w_dict = pool.map(partial(self.wtheta_calculator, bin_z, xi_ell_dict), self.theta)
+            with Pool(self.n_cpu) as pool:
+                w_dict = pool.map(partial(self.wtheta_calculator, bin_z, xi_ell_dict), self.theta, chunksize=len(self.theta) // self.n_cpu)
         else:
             raise NotImplementedError("Sequential computation of w(theta) without multiprocessing is not implemented.")
 
@@ -542,8 +543,8 @@ class CellCalculator:
         print(f"{bin_z} - Computing C_ell...")
         if self.use_multiprocessing:
             print(f"WARNING: C_ell will be computed for all ell values in parallel using {self.n_cpu} CPUs!")
-            with multiprocessing.Pool(self.n_cpu) as pool:
-                C_dict = pool.map(partial(self.C_ell_calculator, bin_z), self.ell)
+            with Pool(self.n_cpu) as pool:
+                C_dict = pool.map(partial(self.C_ell_calculator, bin_z), self.ell, chunksize=len(self.ell) // self.n_cpu)
         else:
             raise NotImplementedError("Sequential computation of C_ell without multiprocessing is not implemented.")
 
