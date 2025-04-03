@@ -46,7 +46,7 @@ where $z_{\rm eff}$ is the effective redshift of the galaxy sample, $D_M(z)$ is 
 
 ## Organization
 
-- `utlis_cosmology.py` returns the cosmological parameters for a given cosmology.
+- `utils_cosmology.py` returns the cosmological parameters for a given cosmology.
 - `utils_data.py` returns the redshift distributions, data $w(\theta)$ and covariance for a given dataset.
 - `utils_template.py` computes the theoretical template for the $w(\theta)$.
 - `utils_baofit.py` runs the BAO fits.
