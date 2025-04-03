@@ -28,7 +28,7 @@ where $z_{\rm eff}$ is the effective redshift of the galaxy sample, $D_M(z)$ is 
 
 - **Minimization Algorithm**
   
-  The $chi^2$ depends on $\alpha$ but also on the amplitude and broad-band term parameters, $\chi^2=\chi^2(\alpha, B, A_i)$. The minimization algorithm has four steps:
+  The $\chi^2$ depends on $\alpha$ but also on the amplitude and broad-band term parameters, $\chi^2=\chi^2(\alpha, B, A_i)$. The minimization algorithm has four steps:
   1. The $A_i$ parameters are fit analytically, which leaves us with
      
      $\chi^2(\alpha, B, A_i) \to \chi^2(\alpha, B, A_{i, \rm bf}).$
