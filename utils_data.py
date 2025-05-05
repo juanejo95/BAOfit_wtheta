@@ -18,7 +18,7 @@ class RedshiftDistributions:
         self.verbose = verbose
         
         # File paths based on dataset and nz_flag
-        if self.dataset in ["DESY6", "DESY6_noDESI_-23.5", "DESY6_DESI_-23.5"]: # they have the same n(z), but in different paths
+        if self.dataset in ["DESY6", "DESY6_dec<-23.5", "DESY6_dec>-23.5"]: # they have the same n(z), but in different paths
             self.nz_type = "widebin"
             if self.nz_flag == "fid":
                 file_path = f"datasets/{self.dataset}/nz/nz_DNFpdf_shift_stretch_wrtclusteringz1-4_wrtVIPERS5-6_v2.txt"
@@ -279,7 +279,7 @@ class WThetaDataCovariance:
     def load_covariance_matrix(self, indices_theta_allbins_concatenated, theta_wtheta_data_concatenated):
         if self.cov_type == "cosmolike":
             path_cov = f"datasets/{self.dataset}/cov_{self.cov_type}"
-            if self.dataset in ["DESY6", "DESY6_noDESI_-23.5", "DESY6_DESI_-23.5"]:
+            if self.dataset in ["DESY6", "DESY6_dec<-23.5", "DESY6_dec>-23.5"]:
                 cov = np.loadtxt(
                     f"{path_cov}/cov_Y6bao_data_DeltaTheta{str(self.delta_theta).replace('.', 'p')}_mask_g_{self.cosmology_covariance}.txt"
                 )
@@ -291,9 +291,9 @@ class WThetaDataCovariance:
                 # if self.mock_id == "mean":
                 #     cov /= 1952
             theta_cov = np.loadtxt(f"{path_cov}/delta_theta_{self.delta_theta}_binning.txt")[:, 2] * np.pi / 180
-            if self.dataset == "DESY6_noDESI_-23.5":
+            if self.dataset == "DESY6_dec<-23.5":
                 cov *= 1.456
-            elif self.dataset == "DESY6_DESI_-23.5":
+            elif self.dataset == "DESY6_dec>-23.5":
                 cov *= 3.193
 
         elif self.cov_type == "mocks":

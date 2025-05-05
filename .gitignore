@@ -5,8 +5,8 @@
 **/results
 **/templates
 
-datasets/DESY6_noDESI_-23.5/wtheta/wtheta.zip
-datasets/DESY6_DESI_-23.5/wtheta/wtheta.zip
+datasets/DESY6_dec<-23.5/wtheta/wtheta.zip
+datasets/DESY6_dec>-23.5/wtheta/wtheta.zip
 
 datasets/DESIY1_LRG_EZ
 
