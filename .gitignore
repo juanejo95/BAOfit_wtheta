@@ -8,6 +8,9 @@
 datasets/DESY6_dec<-23.5/wtheta/wtheta.zip
 datasets/DESY6_dec>-23.5/wtheta/wtheta.zip
 
+datasets/DESY6_DR1tiles_noDESI/wtheta/wtheta.zip
+datasets/DESY6_DR1tiles_DESIonly/wtheta/wtheta.zip
+
 datasets/DESIY1_LRG_EZ
 
 **/scripts

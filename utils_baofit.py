@@ -243,7 +243,7 @@ class BAOFitInitializer:
 
     def _generate_path_baofit(self):
         """Generate the save path for the BAO fit results."""
-        if self.dataset in ["DESY6", "DESY6_dec<-23.5", "DESY6_dec>-23.5"]:
+        if self.dataset in ["DESY6", "DESY6_dec<-23.5", "DESY6_dec>-23.5", "DESY6_DR1tiles_noDESI", "DESY6_DR1tiles_DESIonly"]:
             path = (
                 f"{self.base_path}/results/fit_results{self.include_wiggles}/{self.dataset}/weight_{self.weight_type}/nz{self.nz_flag}_cov{self.cov_type}_"
                 f"{self.cosmology_template}temp_{self.cosmology_covariance}cov_deltatheta{self.delta_theta}_"
