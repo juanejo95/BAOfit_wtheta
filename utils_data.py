@@ -2,6 +2,7 @@ import numpy as np
 import sys
 import zipfile
 import re
+import warnings
 
 class RedshiftDistributions:
     def __init__(self, dataset, nz_flag, verbose=True):
@@ -140,8 +141,8 @@ class WThetaDataCovariance:
         - cov_type (str): Type of covariance.
         - cosmology_covariance (str): Cosmology for the covariance.
         - delta_theta (float): Delta theta value.
-        - theta_min (float): Minimum theta value.
-        - theta_max (float): Maximum theta value.
+        - theta_min (dict): Minimum theta value for each redshift bin.
+        - theta_max (dict): Maximum theta value for each redshift bins.
         - bins_removed (list): Redshift bins removed when running the BAO fit.
         - diag_only (str): Whether to keep only the diagonal of the covariance.
         - remove_crosscov (str): Whether to remove the cross-covariances between redshift bins.
@@ -250,8 +251,18 @@ class WThetaDataCovariance:
                             wtheta = npz_data.get(f"z{bin_z+1}")
                             theta = npz_data.get("theta") * np.pi / 180
 
-            indices_theta_individualbin = np.where((theta > self.theta_min * np.pi / 180) &
-                                                   (theta < self.theta_max * np.pi / 180))[0]
+            # if all(v is not None for v in [self.theta_min, self.theta_max]):
+            #     indices_theta_individualbin = np.where(
+            #         (theta > self.theta_min * np.pi / 180) &
+            #         (theta < self.theta_max * np.pi / 180)
+            #     )[0]
+            # else:
+            #     indices_theta_individualbin = np.arange(len(theta))
+
+            indices_theta_individualbin = np.where(
+                (theta > self.theta_min[bin_z] * np.pi / 180) &
+                (theta < self.theta_max[bin_z] * np.pi / 180)
+            )[0]
 
             theta_wtheta_data[bin_z] = theta[indices_theta_individualbin]
             
@@ -260,23 +271,14 @@ class WThetaDataCovariance:
             else:
                 wtheta_data[bin_z] = wtheta[indices_theta_individualbin]
 
-            indices_theta_allbins[bin_z] = indices_theta_individualbin + bin_z * len(theta)
-
-        indices_theta_allbins_concatenated = np.concatenate([indices_theta_allbins[i] for i in range(self.nbins)])
-
-        theta_wtheta_data_concatenated = np.concatenate([theta_wtheta_data[i] for i in range(self.nbins)])
+        theta_wtheta_data_concatenated = np.concatenate([theta_wtheta_data[bin_z] for bin_z in range(self.nbins)])
         wtheta_data_concatenated = np.concatenate([wtheta_data[bin_z] for bin_z in range(self.nbins)])
 
-        if all(np.array_equal(v, list(theta_wtheta_data.values())[0]) for v in theta_wtheta_data.values()):
-            theta_data = list(theta_wtheta_data.values())[0]
-            print("All theta values are the same. Using the first one as an array.")
-        else:
-            print("Theta values are different. Something seems to be wrong!")
-            sys.exit()
+        return theta_wtheta_data, wtheta_data
 
-        return theta_data, wtheta_data, indices_theta_allbins_concatenated, theta_wtheta_data_concatenated
-
-    def load_covariance_matrix(self, indices_theta_allbins_concatenated, theta_wtheta_data_concatenated):
+    def load_covariance_matrix(self):
+        theta_cov = {}
+        
         if self.cov_type == "cosmolike":
             path_cov = f"datasets/{self.dataset}/cov_{self.cov_type}"
             if self.dataset in ["DESY6", "DESY6_dec<-23.5", "DESY6_dec>-23.5", "DESY6_DR1tiles_noDESI", "DESY6_DR1tiles_DESIonly"]:
@@ -290,7 +292,8 @@ class WThetaDataCovariance:
                     )
                 # if self.mock_id == "mean":
                 #     cov /= 1952
-            theta_cov = np.loadtxt(f"{path_cov}/delta_theta_{self.delta_theta}_binning.txt")[:, 2] * np.pi / 180
+            for bin_z in range(self.nbins):
+                theta_cov[bin_z] = np.loadtxt(f"{path_cov}/delta_theta_{self.delta_theta}_binning.txt")[:, 2] * np.pi / 180 # same for all of them!
             if self.dataset == "DESY6_dec<-23.5":
                 cov *= 1.456
             elif self.dataset == "DESY6_dec>-23.5":
@@ -304,21 +307,16 @@ class WThetaDataCovariance:
             path_cov = f"datasets/{self.dataset}/cov_{self.cov_type}"
             if self.dataset == "DESIY1_LRG_EZ":
                 cov = np.loadtxt(f"{path_cov}/EZcovariance_matrix.txt")
-                theta_cov = np.loadtxt(f"{path_cov}/theta.txt") * np.pi / 180
+                for bin_z in range(self.nbins):
+                    theta_cov[bin_z] = np.loadtxt(f"{path_cov}/theta.txt") * np.pi / 180
         else:
             raise NotImplementedError("Such covariance does not exist.")
-
-        theta_cov_concatenated = np.concatenate([theta_cov] * self.nbins)
-
-        if abs(theta_wtheta_data_concatenated - theta_cov_concatenated[indices_theta_allbins_concatenated]).max() > 10**-4:
-            print("The covariance matrix and the w(theta) do not have the same theta binning.")
-            sys.exit()
 
         cov_adjusted = np.zeros_like(cov)
         for bin_z1 in range(self.nbins):
             for bin_z2 in range(self.nbins):
-                slice_1 = slice(bin_z1 * len(theta_cov), (bin_z1 + 1) * len(theta_cov))
-                slice_2 = slice(bin_z2 * len(theta_cov), (bin_z2 + 1) * len(theta_cov))
+                slice_1 = slice(bin_z1 * len(theta_cov[bin_z1]), (bin_z1 + 1) * len(theta_cov[bin_z1]))
+                slice_2 = slice(bin_z2 * len(theta_cov[bin_z2]), (bin_z2 + 1) * len(theta_cov[bin_z2]))
                 if bin_z1 == bin_z2 or (bin_z1 not in self.bins_removed and bin_z2 not in self.bins_removed):
                     cov_adjusted[slice_1, slice_2] = cov[slice_1, slice_2]
         cov = cov_adjusted
@@ -326,26 +324,61 @@ class WThetaDataCovariance:
         if self.remove_crosscov == "y":
             cov_adjusted = np.zeros_like(cov)
             for bin_z in range(self.nbins):
-                slice_ = slice(bin_z * len(theta_cov), (bin_z + 1) * len(theta_cov))
+                slice_ = slice(bin_z * len(theta_cov[bin_z]), (bin_z + 1) * len(theta_cov[bin_z]))
                 cov_adjusted[slice_, slice_] = cov[slice_, slice_]
             cov = cov_adjusted
 
         if self.diag_only == "y":
             cov = np.diag(np.diag(cov))
 
-        cov_orig = np.copy(cov)
-        cov = cov_orig[indices_theta_allbins_concatenated[:, None], indices_theta_allbins_concatenated]
+        # Let's do the scale cuts
+        theta_cov_cut = {}
+        indices_theta_allbins_concatenated = []
+        for bin_z in range(self.nbins):
+            # if all(v is not None for v in [self.theta_min, self.theta_max]):
+            #     indices_theta_individualbin = np.where(
+            #         (theta_cov[bin_z] > self.theta_min * np.pi / 180) &
+            #         (theta_cov[bin_z] < self.theta_max * np.pi / 180)
+            #     )[0]
+            # else:
+            #     indices_theta_individualbin = np.arange(len(theta_cov[bin_z]))
+
+            indices_theta_individualbin = np.where(
+                (theta_cov[bin_z] > self.theta_min[bin_z] * np.pi / 180) &
+                (theta_cov[bin_z] < self.theta_max[bin_z] * np.pi / 180)
+            )[0]
+
+            theta_cov_cut[bin_z] = theta_cov[bin_z][indices_theta_individualbin]
+            
+            for bin_z2 in range(bin_z):
+                indices_theta_individualbin += len(theta_cov[bin_z2])
+
+            indices_theta_allbins_concatenated.append(indices_theta_individualbin)
+
+        indices_theta_allbins_concatenated = np.concatenate(indices_theta_allbins_concatenated)
+        
+        cov_cut = cov[indices_theta_allbins_concatenated[:, None], indices_theta_allbins_concatenated]
 
         # if self.cov_type == "mocks":
         #     if self.dataset == "DESIY1_LRG_EZ":
         #         print("Applying the Hartlap correction to the covariance matrix from the mocks")
-        #         hartlap = (1000 - len(cov) - 2) / (1000 - 1)
-        #         cov /= hartlap
+        #         hartlap = (1000 - len(cov_cut) - 2) / (1000 - 1)
+        #         cov_cut /= hartlap
         
-        return cov
+        return theta_cov_cut, cov_cut
 
     def process(self):
-        theta_data, wtheta_data, indices_theta_allbins_concatenated, theta_wtheta_data_concatenated = self.load_wtheta_data()
-        cov = self.load_covariance_matrix(indices_theta_allbins_concatenated, theta_wtheta_data_concatenated)
+        theta_data, wtheta_data = self.load_wtheta_data()
+        theta_cov, cov = self.load_covariance_matrix()
+    
+        if set(theta_data.keys()) != set(theta_cov.keys()):
+            warnings.warn("Theta keys mismatch between data and covariance.")
+            sys.exit("Aborting: theta_data and theta_cov keys differ!")
+    
+        for key in theta_data:
+            if not np.allclose(theta_data[key], theta_cov[key], rtol=1e-8, atol=1e-10):
+                warnings.warn(f"Theta mismatch in bin {key} (not close enough).")
+                sys.exit("Aborting: theta_data and theta_cov values differ!")
+
         return theta_data, wtheta_data, cov
     

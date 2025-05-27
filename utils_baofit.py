@@ -69,9 +69,9 @@ class WThetaModelGalaxyBias:
                 interp = self.wtheta_components_interp[bin_z]
                 b = galaxy_bias[bin_z]
                 wtheta_bin = (
-                    b**2 * interp["bb"](theta) +
-                    b * interp["bf"](theta) +
-                    interp["ff"](theta)
+                    b**2 * interp["bb"](theta[bin_z]) +
+                    b * interp["bf"](theta[bin_z]) +
+                    interp["ff"](theta[bin_z])
                 )
                 wtheta_concatenated.append(wtheta_bin)
 
@@ -117,8 +117,8 @@ class WThetaModel:
 
         letters = list("ABCDEFG")  # Letters from A to G (depending on the number of broadband-term parameters)
         params = ["alpha"]
-        for i in range(self.nbins):
-            params.extend([f"{letter}_{i}" for letter in letters])
+        for bin_z in range(self.nbins):
+            params.extend([f"{letter}_{bin_z}" for letter in letters])
         self.names_params =  np.array(params)
 
         self.n_broadband_max = int((len(self.names_params) - 1) / self.nbins - 1)  # This should be 6 (from B to G, since A is the amplitude)
@@ -166,13 +166,13 @@ class WThetaModel:
     def wtheta_template_raw(self, theta, alpha, *params):
         """Theoretical template calculation."""
         wtheta_template = np.concatenate([
-            params[(1 + self.n_broadband_max) * bin_z] * self.wtheta_th_interp[bin_z](alpha * theta) +  # A
+            params[(1 + self.n_broadband_max) * bin_z] * self.wtheta_th_interp[bin_z](alpha * theta[bin_z]) +  # A
             params[(1 + self.n_broadband_max) * bin_z + 1] +  # B
-            params[(1 + self.n_broadband_max) * bin_z + 2] / theta +  # C
-            params[(1 + self.n_broadband_max) * bin_z + 3] / theta**2 +  # D
-            params[(1 + self.n_broadband_max) * bin_z + 4] * theta +  # E
-            params[(1 + self.n_broadband_max) * bin_z + 5] * theta**2 +  # F
-            params[(1 + self.n_broadband_max) * bin_z + 6] * theta**3  # G
+            params[(1 + self.n_broadband_max) * bin_z + 2] / theta[bin_z] +  # C
+            params[(1 + self.n_broadband_max) * bin_z + 3] / theta[bin_z]**2 +  # D
+            params[(1 + self.n_broadband_max) * bin_z + 4] * theta[bin_z] +  # E
+            params[(1 + self.n_broadband_max) * bin_z + 5] * theta[bin_z]**2 +  # F
+            params[(1 + self.n_broadband_max) * bin_z + 6] * theta[bin_z]**3  # G
             for bin_z in range(self.nbins)
         ])
         return wtheta_template
@@ -203,8 +203,8 @@ class BAOFitInitializer:
         - cosmology_template (str): Cosmology for the template.
         - cosmology_covariance (str): Cosmology for the covariance.
         - delta_theta (float): Delta theta value.
-        - theta_min (float): Minimum theta value.
-        - theta_max (float): Maximum theta value.
+        - theta_min (dict): Minimum theta value for each redshift bin.
+        - theta_max (dict): Maximum theta value for each redshift bin.
         - n_broadband (int): Number of broadband parameters.
         - bins_removed (list): Redshift bins removed when running the BAO fit.
         - verbose (bool): Whether to print messages.
@@ -247,21 +247,24 @@ class BAOFitInitializer:
             path = (
                 f"{self.base_path}/results/fit_results{self.include_wiggles}/{self.dataset}/weight_{self.weight_type}/nz{self.nz_flag}_cov{self.cov_type}_"
                 f"{self.cosmology_template}temp_{self.cosmology_covariance}cov_deltatheta{self.delta_theta}_"
-                f"thetamin{self.theta_min}_thetamax{self.theta_max}_{self.n_broadband}broadband_binsremoved{self.bins_removed}_"
+                # f"thetamin{self.theta_min}_thetamax{self.theta_max}_"
+                f"{self.n_broadband}broadband_binsremoved{self.bins_removed}_"
                 f"alphamin{self.alpha_min}_alphamax{self.alpha_max}"
             )
         elif self.dataset == "DESY6_COLA":
             path = (
                 f"{self.base_path}/results/fit_results{self.include_wiggles}/{self.dataset}/mock_{self.mock_id}/nz{self.nz_flag}_cov{self.cov_type}_"
                 f"{self.cosmology_template}temp_{self.cosmology_covariance}cov_deltatheta{self.delta_theta}_"
-                f"thetamin{self.theta_min}_thetamax{self.theta_max}_{self.n_broadband}broadband_binsremoved{self.bins_removed}_"
+                # f"thetamin{self.theta_min}_thetamax{self.theta_max}_"
+                f"{self.n_broadband}broadband_binsremoved{self.bins_removed}_"
                 f"alphamin{self.alpha_min}_alphamax{self.alpha_max}"
             )
         elif self.dataset == "DESIY1_LRG_EZ":
             path = (
                 f"{self.base_path}/results/fit_results{self.include_wiggles}/{self.dataset}/mock_{self.mock_id}/nz{self.nz_flag}_cov{self.cov_type}_"
                 f"{self.cosmology_template}temp_{self.cosmology_covariance}cov_deltatheta{self.delta_theta}_"
-                f"thetamin{self.theta_min}_thetamax{self.theta_max}_{self.n_broadband}broadband_binsremoved{self.bins_removed}_"
+                # f"thetamin{self.theta_min}_thetamax{self.theta_max}_"
+                f"{self.n_broadband}broadband_binsremoved{self.bins_removed}_"
                 f"alphamin{self.alpha_min}_alphamax{self.alpha_max}"
             )
         else:
@@ -413,7 +416,9 @@ class BAOFit:
             params_best[self.pos_amplitude] = amplitude_params_best
             params_best[self.pos_broadband] = broadband_params_best
 
-            theta_data_interp = np.linspace(self.theta_data[0], self.theta_data[-1], 10**3)
+            theta_data_interp = {}
+            for bin_z in range(self.nbins):
+                theta_data_interp[bin_z] = np.linspace(self.theta_data[bin_z][0], self.theta_data[bin_z][-1], 10**3)
 
             wtheta_fit_best = self.wtheta_template(theta_data_interp, *params_best)
 
@@ -422,9 +427,9 @@ class BAOFit:
             for bin_z in range(self.nbins):
                 ax = axs[bin_z]
                 ax.errorbar(
-                    self.theta_data * 180 / np.pi,
-                    100 * (self.theta_data * 180 / np.pi) ** 2 * self.wtheta_data[bin_z],
-                    yerr=100 * (self.theta_data * 180 / np.pi) ** 2 * np.sqrt(np.diag(self.cov))[bin_z * len(self.theta_data):(bin_z + 1) * len(self.theta_data)],
+                    self.theta_data[bin_z] * 180 / np.pi,
+                    100 * (self.theta_data[bin_z] * 180 / np.pi) ** 2 * self.wtheta_data[bin_z],
+                    yerr=100 * (self.theta_data[bin_z] * 180 / np.pi) ** 2 * np.sqrt(np.diag(self.cov))[sum(len(self.theta_data[bin_z2]) for bin_z2 in range(bin_z)):sum(len(self.theta_data[bin_z2]) for bin_z2 in range(bin_z + 1))],
                     capsize=4, capthick=1.5,
                     marker="D", markersize=6, markerfacecolor="lightblue", markeredgewidth=1.2,
                     markeredgecolor="dodgerblue", ecolor="dodgerblue", linestyle="none",
@@ -432,14 +437,14 @@ class BAOFit:
                     zorder=-1000
                 )
                 ax.plot(
-                    theta_data_interp * 180 / np.pi, 
-                    100 * (theta_data_interp * 180 / np.pi) ** 2 * self.wtheta_model.wtheta_th_interp[bin_z](theta_data_interp),
+                    theta_data_interp[bin_z] * 180 / np.pi, 
+                    100 * (theta_data_interp[bin_z] * 180 / np.pi) ** 2 * self.wtheta_model.wtheta_th_interp[bin_z](theta_data_interp[bin_z]),
                     color="red", linestyle="--",
                     label="template"
                 )
                 ax.plot(
-                    theta_data_interp * 180 / np.pi, 
-                    100 * (theta_data_interp * 180 / np.pi) ** 2 * wtheta_fit_best[bin_z * len(theta_data_interp):(bin_z + 1) * len(theta_data_interp)],
+                    theta_data_interp[bin_z] * 180 / np.pi, 
+                    100 * (theta_data_interp[bin_z] * 180 / np.pi) ** 2 * wtheta_fit_best[sum(len(theta_data_interp[bin_z2]) for bin_z2 in range(bin_z)):sum(len(theta_data_interp[bin_z2]) for bin_z2 in range(bin_z + 1))],
                     color="black",
                     label="best fit"
                 )
@@ -464,7 +469,7 @@ class BAOFit:
             np.savetxt(
                 self.path_baofit + "/wtheta_data_bestfit.txt",
                 np.column_stack([
-                    np.concatenate([self.theta_data] * self.nbins),
+                    np.concatenate([self.theta_data[bin_z] for bin_z in range(self.nbins)]),
                     self.wtheta_data_concatenated,
                     self.wtheta_template(self.theta_data, *params_best),
                     np.sqrt(np.diag(self.cov))
