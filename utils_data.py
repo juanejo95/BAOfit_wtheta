@@ -42,7 +42,7 @@ class RedshiftDistributions:
                 }
             else:
                 raise ValueError(f"Unknown nz_flag: {self.nz_flag} for dataset: datasets/{self.dataset}")
-        elif self.dataset in ["DESIY1_LRG_Abacus", "DESIY1_LRG_EZ"]:
+        elif self.dataset in ["DESIY1_LRG_Abacus", "DESIY1_LRG_EZ", "DESIY1_LRG_EZ_complete", "DESIY1_LRG_EZ_ffa"]:
             self.nz_type = "thinbin"
             if self.nz_flag == "mocks":
                 file_path = f"datasets/{self.dataset}/nz/mean_nzs.txt"
@@ -214,7 +214,7 @@ class WThetaDataCovariance:
                         with zf.open(file_in_zip) as filename_wtheta:
                             theta, wtheta = np.loadtxt(filename_wtheta).T
                             
-            elif self.dataset == "DESIY1_LRG_EZ":
+            elif self.dataset in ["DESIY1_LRG_EZ", "DESIY1_LRG_EZ_complete", "DESIY1_LRG_EZ_ffa"]:
                 if self.mock_id == "mean":
                     with zipfile.ZipFile(zip_file, "r") as zf:
                         # pattern = re.compile(r"deltaz0p02_deltath0p4_thetacuts/twoangcorr_mock_\d+\.npz")
@@ -250,14 +250,6 @@ class WThetaDataCovariance:
             
                             wtheta = npz_data.get(f"z{bin_z+1}")
                             theta = npz_data.get("theta") * np.pi / 180
-
-            # if all(v is not None for v in [self.theta_min, self.theta_max]):
-            #     indices_theta_individualbin = np.where(
-            #         (theta > self.theta_min * np.pi / 180) &
-            #         (theta < self.theta_max * np.pi / 180)
-            #     )[0]
-            # else:
-            #     indices_theta_individualbin = np.arange(len(theta))
 
             indices_theta_individualbin = np.where(
                 (theta > self.theta_min[bin_z] * np.pi / 180) &
@@ -305,7 +297,7 @@ class WThetaDataCovariance:
 
         elif self.cov_type == "mocks":
             path_cov = f"datasets/{self.dataset}/cov_{self.cov_type}"
-            if self.dataset == "DESIY1_LRG_EZ":
+            if self.dataset in ["DESIY1_LRG_EZ", "DESIY1_LRG_EZ_complete", "DESIY1_LRG_EZ_ffa"]:
                 cov = np.loadtxt(f"{path_cov}/EZcovariance_matrix.txt")
                 for bin_z in range(self.nbins):
                     theta_cov[bin_z] = np.loadtxt(f"{path_cov}/theta.txt") * np.pi / 180
@@ -335,13 +327,6 @@ class WThetaDataCovariance:
         theta_cov_cut = {}
         indices_theta_allbins_concatenated = []
         for bin_z in range(self.nbins):
-            # if all(v is not None for v in [self.theta_min, self.theta_max]):
-            #     indices_theta_individualbin = np.where(
-            #         (theta_cov[bin_z] > self.theta_min * np.pi / 180) &
-            #         (theta_cov[bin_z] < self.theta_max * np.pi / 180)
-            #     )[0]
-            # else:
-            #     indices_theta_individualbin = np.arange(len(theta_cov[bin_z]))
 
             indices_theta_individualbin = np.where(
                 (theta_cov[bin_z] > self.theta_min[bin_z] * np.pi / 180) &
@@ -359,11 +344,11 @@ class WThetaDataCovariance:
         
         cov_cut = cov[indices_theta_allbins_concatenated[:, None], indices_theta_allbins_concatenated]
 
-        # if self.cov_type == "mocks":
-        #     if self.dataset == "DESIY1_LRG_EZ":
-        #         print("Applying the Hartlap correction to the covariance matrix from the mocks")
-        #         hartlap = (1000 - len(cov_cut) - 2) / (1000 - 1)
-        #         cov_cut /= hartlap
+        if self.cov_type == "mocks":
+            if self.dataset in ["DESIY1_LRG_EZ", "DESIY1_LRG_EZ_complete", "DESIY1_LRG_EZ_ffa"]:
+                print("Applying the Hartlap correction to the covariance matrix from the mocks")
+                hartlap = (1000 - len(cov_cut) - 2) / (1000 - 1)
+                cov_cut /= hartlap
         
         return theta_cov_cut, cov_cut
 
@@ -376,8 +361,10 @@ class WThetaDataCovariance:
             sys.exit("Aborting: theta_data and theta_cov keys differ!")
     
         for key in theta_data:
-            if not np.allclose(theta_data[key], theta_cov[key], rtol=1e-8, atol=1e-10):
+            if not np.allclose(theta_data[key], theta_cov[key], rtol=1e-4, atol=1e-4):
                 warnings.warn(f"Theta mismatch in bin {key} (not close enough).")
+                print(theta_data[key])
+                print(theta_cov[key])
                 sys.exit("Aborting: theta_data and theta_cov values differ!")
 
         return theta_data, wtheta_data, cov

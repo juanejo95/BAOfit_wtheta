@@ -12,5 +12,7 @@ datasets/DESY6_DR1tiles_noDESI/wtheta/wtheta.zip
 datasets/DESY6_DR1tiles_DESIonly/wtheta/wtheta.zip
 
 datasets/DESIY1_LRG_EZ
+datasets/DESIY1_LRG_EZ_complete
+datasets/DESIY1_LRG_EZ_ffa
 
 **/scripts
