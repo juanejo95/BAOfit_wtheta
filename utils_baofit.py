@@ -245,7 +245,7 @@ class BAOFitInitializer:
         """Generate the save path for the BAO fit results."""
         if self.dataset in ["DESY6", "DESY6_dec<-23.5", "DESY6_dec>-23.5", "DESY6_DR1tiles_noDESI", "DESY6_DR1tiles_DESIonly"]:
             path = (
-                f"{self.base_path}/results/fit_results{self.include_wiggles}/{self.dataset}/weight_{self.weight_type}/nz{self.nz_flag}_cov{self.cov_type}_"
+                f"{self.base_path}/results/{self.dataset}/fit_results{self.include_wiggles}/weight_{self.weight_type}/nz{self.nz_flag}_cov{self.cov_type}_"
                 f"{self.cosmology_template}temp_{self.cosmology_covariance}cov_deltatheta{self.delta_theta}_"
                 # f"thetamin{self.theta_min}_thetamax{self.theta_max}_"
                 f"{self.n_broadband}broadband_binsremoved{self.bins_removed}_"
@@ -253,15 +253,15 @@ class BAOFitInitializer:
             )
         elif self.dataset == "DESY6_COLA":
             path = (
-                f"{self.base_path}/results/fit_results{self.include_wiggles}/{self.dataset}/mock_{self.mock_id}/nz{self.nz_flag}_cov{self.cov_type}_"
+                f"{self.base_path}/results/{self.dataset}/fit_results{self.include_wiggles}/mock_{self.mock_id}/nz{self.nz_flag}_cov{self.cov_type}_"
                 f"{self.cosmology_template}temp_{self.cosmology_covariance}cov_deltatheta{self.delta_theta}_"
                 # f"thetamin{self.theta_min}_thetamax{self.theta_max}_"
                 f"{self.n_broadband}broadband_binsremoved{self.bins_removed}_"
                 f"alphamin{self.alpha_min}_alphamax{self.alpha_max}"
             )
-        elif self.dataset in ["DESIY1_LRG_EZ", "DESIY1_LRG_EZ_complete", "DESIY1_LRG_EZ_ffa"]:
+        elif self.dataset in ["DESIY1_LRG_Abacus_complete", "DESIY1_LRG_EZ", "DESIY1_LRG_EZ_complete", "DESIY1_LRG_EZ_ffa"]:
             path = (
-                f"{self.base_path}/results/fit_results{self.include_wiggles}/{self.dataset}/mock_{self.mock_id}/nz{self.nz_flag}_cov{self.cov_type}_"
+                f"{self.base_path}/results/{self.dataset}/fit_results{self.include_wiggles}/mock_{self.mock_id}/nz{self.nz_flag}_cov{self.cov_type}_"
                 f"{self.cosmology_template}temp_{self.cosmology_covariance}cov_deltatheta{self.delta_theta}_"
                 # f"thetamin{self.theta_min}_thetamax{self.theta_max}_"
                 f"{self.n_broadband}broadband_binsremoved{self.bins_removed}_"
@@ -452,7 +452,7 @@ class BAOFit:
                 ax.tick_params(axis="x", labelsize=18)
                 ax.tick_params(axis="y", labelsize=18)
                 z_edge = self.z_edges[bin_z]
-                if self.dataset not in ["DESIY1_LRG_EZ", "DESIY1_LRG_EZ_complete", "DESIY1_LRG_EZ_ffa"]:
+                if self.dataset not in ["DESIY1_LRG_Abacus_complete", "DESIY1_LRG_EZ", "DESIY1_LRG_EZ_complete", "DESIY1_LRG_EZ_ffa"]:
                     ax.text(0.13, 0.1, f"{z_edge[0]} $< z <$ {z_edge[1]}", ha="center", va="center", transform=ax.transAxes, fontsize=18)
                 else:
                     ax.text(0.13, 0.1, f"{z_edge[0]:.2f} $< z <$ {z_edge[1]:.2f}", ha="center", va="center", transform=ax.transAxes, fontsize=18)

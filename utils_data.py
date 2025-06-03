@@ -42,7 +42,7 @@ class RedshiftDistributions:
                 }
             else:
                 raise ValueError(f"Unknown nz_flag: {self.nz_flag} for dataset: datasets/{self.dataset}")
-        elif self.dataset in ["DESIY1_LRG_Abacus", "DESIY1_LRG_EZ", "DESIY1_LRG_EZ_complete", "DESIY1_LRG_EZ_ffa"]:
+        elif self.dataset in ["DESIY1_LRG_Abacus_complete", "DESIY1_LRG_EZ", "DESIY1_LRG_EZ_complete", "DESIY1_LRG_EZ_ffa"]:
             self.nz_type = "thinbin"
             if self.nz_flag == "mocks":
                 file_path = f"datasets/{self.dataset}/nz/mean_nzs.txt"
@@ -79,7 +79,7 @@ class RedshiftDistributions:
             z_min, z_max = self.z_edges[bin_z]
             mask = (z_min <= z) & (z < z_max)
             result = np.zeros_like(z, dtype=float)
-            result[mask] = 1 / (z_max - z_min) # it is just a top hat function
+            result[mask] = 1 / (z_max - z_min) # it is just a top-hat function
             return result if z.ndim > 0 else result.item()
 
     def z_average(self, bin_z):
@@ -214,7 +214,7 @@ class WThetaDataCovariance:
                         with zf.open(file_in_zip) as filename_wtheta:
                             theta, wtheta = np.loadtxt(filename_wtheta).T
                             
-            elif self.dataset in ["DESIY1_LRG_EZ", "DESIY1_LRG_EZ_complete", "DESIY1_LRG_EZ_ffa"]:
+            elif self.dataset in ["DESIY1_LRG_Abacus_complete", "DESIY1_LRG_EZ", "DESIY1_LRG_EZ_complete", "DESIY1_LRG_EZ_ffa"]:
                 if self.mock_id == "mean":
                     with zipfile.ZipFile(zip_file, "r") as zf:
                         # pattern = re.compile(r"deltaz0p02_deltath0p4_thetacuts/twoangcorr_mock_\d+\.npz")
@@ -237,7 +237,7 @@ class WThetaDataCovariance:
                                     theta = npz_data.get("theta") * np.pi / 180
             
                                 all_wtheta.append(wtheta_mock)
-            
+                        
                         wtheta = np.mean(all_wtheta, axis=0)
             
                 else:
@@ -297,7 +297,7 @@ class WThetaDataCovariance:
 
         elif self.cov_type == "mocks":
             path_cov = f"datasets/{self.dataset}/cov_{self.cov_type}"
-            if self.dataset in ["DESIY1_LRG_EZ", "DESIY1_LRG_EZ_complete", "DESIY1_LRG_EZ_ffa"]:
+            if self.dataset in ["DESIY1_LRG_Abacus_complete", "DESIY1_LRG_EZ", "DESIY1_LRG_EZ_complete", "DESIY1_LRG_EZ_ffa"]:
                 cov = np.loadtxt(f"{path_cov}/EZcovariance_matrix.txt")
                 for bin_z in range(self.nbins):
                     theta_cov[bin_z] = np.loadtxt(f"{path_cov}/theta.txt") * np.pi / 180
@@ -345,7 +345,7 @@ class WThetaDataCovariance:
         cov_cut = cov[indices_theta_allbins_concatenated[:, None], indices_theta_allbins_concatenated]
 
         if self.cov_type == "mocks":
-            if self.dataset in ["DESIY1_LRG_EZ", "DESIY1_LRG_EZ_complete", "DESIY1_LRG_EZ_ffa"]:
+            if self.dataset in ["DESIY1_LRG_Abacus_complete", "DESIY1_LRG_EZ", "DESIY1_LRG_EZ_complete", "DESIY1_LRG_EZ_ffa"]:
                 print("Applying the Hartlap correction to the covariance matrix from the mocks")
                 hartlap = (1000 - len(cov_cut) - 2) / (1000 - 1)
                 cov_cut /= hartlap

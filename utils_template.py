@@ -58,7 +58,7 @@ class TemplateInitializer:
         self.components = ["bb", "bf", "ff"]
         
         # Path to save the templates
-        self.path_template = f"{self.base_path}/templates/wtheta_template{self.include_wiggles}/{self.dataset}/nz_{self.nz_flag}/wtheta_{self.cosmology_template}"
+        self.path_template = f"{self.base_path}/templates/{self.dataset}/wtheta_template{self.include_wiggles}/nz_{self.nz_flag}/wtheta_{self.cosmology_template}"
         
         # Make sure the directory exists
         os.makedirs(self.path_template, exist_ok=True)
@@ -216,7 +216,7 @@ class PowerSpectrumMultipoles:
         self.Pk_wigg = pk(self.kh) / self.cosmo.h**3
 
         # Power spectrum without wiggles
-        pknow = PowerSpectrumBAOFilter(pk, engine="wallish2018").smooth_pk_interpolator()
+        pknow = PowerSpectrumBAOFilter(pk, engine="peakaverage", cosmo_fid=self.cosmo).smooth_pk_interpolator()
         self.Pk_nowigg = pknow(self.kh) / self.cosmo.h**3
         
         np.savetxt(f"{self.path_template}/Pk_full.txt", np.column_stack([self.k, self.Pk_wigg, self.Pk_nowigg]))
