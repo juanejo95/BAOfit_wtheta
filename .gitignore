@@ -7,12 +7,17 @@
 
 datasets/DESY6_dec<-23.5/wtheta/wtheta.zip
 datasets/DESY6_dec>-23.5/wtheta/wtheta.zip
-
 datasets/DESY6_DR1tiles_noDESI/wtheta/wtheta.zip
 datasets/DESY6_DR1tiles_DESIonly/wtheta/wtheta.zip
 
-datasets/DESIY1_LRG_EZ
-datasets/DESIY1_LRG_EZ_complete
-datasets/DESIY1_LRG_EZ_ffa
+datasets/DESIY1_LRG_EZ_ffa_deltaz0.028
+datasets/DESIY1_LRG_Abacus_altmtl_deltaz0.028
+datasets/DESIY1_LRG_EZ_complete_deltaz0.028
+datasets/DESIY1_LRG_Abacus_complete_deltaz0.028
 
 **/scripts
+
+copy_templates_DESY6.sh
+copy_templates_DESIY1.sh
+
+nb_table_mocks.ipynb

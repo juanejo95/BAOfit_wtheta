@@ -42,7 +42,7 @@ class RedshiftDistributions:
                 }
             else:
                 raise ValueError(f"Unknown nz_flag: {self.nz_flag} for dataset: datasets/{self.dataset}")
-        elif self.dataset in ["DESIY1_LRG_Abacus_complete", "DESIY1_LRG_EZ", "DESIY1_LRG_EZ_complete", "DESIY1_LRG_EZ_ffa"]:
+        elif self.dataset in ["DESIY1_LRG_EZ_ffa_deltaz0.028", "DESIY1_LRG_Abacus_altmtl_deltaz0.028", "DESIY1_LRG_EZ_complete_deltaz0.028", "DESIY1_LRG_Abacus_complete_deltaz0.028"]:
             self.nz_type = "thinbin"
             if self.nz_flag == "mocks":
                 file_path = f"datasets/{self.dataset}/nz/mean_nzs.txt"
@@ -214,7 +214,7 @@ class WThetaDataCovariance:
                         with zf.open(file_in_zip) as filename_wtheta:
                             theta, wtheta = np.loadtxt(filename_wtheta).T
                             
-            elif self.dataset in ["DESIY1_LRG_Abacus_complete", "DESIY1_LRG_EZ", "DESIY1_LRG_EZ_complete", "DESIY1_LRG_EZ_ffa"]:
+            elif self.dataset in ["DESIY1_LRG_EZ_ffa_deltaz0.028", "DESIY1_LRG_Abacus_altmtl_deltaz0.028", "DESIY1_LRG_EZ_complete_deltaz0.028", "DESIY1_LRG_Abacus_complete_deltaz0.028"]:
                 if self.mock_id == "mean":
                     with zipfile.ZipFile(zip_file, "r") as zf:
                         # pattern = re.compile(r"deltaz0p02_deltath0p4_thetacuts/twoangcorr_mock_\d+\.npz")
@@ -231,13 +231,13 @@ class WThetaDataCovariance:
                             with zf.open(mock_file) as file:
                                 npz_data = np.load(file)
             
-                                wtheta_mock = npz_data.get(f"z{bin_z+1}")
+                                wtheta_mock = npz_data.get(f"z{bin_z}")
             
                                 if theta is None:
                                     theta = npz_data.get("theta") * np.pi / 180
             
                                 all_wtheta.append(wtheta_mock)
-                        
+                                
                         wtheta = np.mean(all_wtheta, axis=0)
             
                 else:
@@ -248,7 +248,7 @@ class WThetaDataCovariance:
                         with zf.open(file_in_zip) as filename_wtheta:
                             npz_data = np.load(filename_wtheta)
             
-                            wtheta = npz_data.get(f"z{bin_z+1}")
+                            wtheta = npz_data.get(f"z{bin_z}")
                             theta = npz_data.get("theta") * np.pi / 180
 
             indices_theta_individualbin = np.where(
@@ -297,7 +297,7 @@ class WThetaDataCovariance:
 
         elif self.cov_type == "mocks":
             path_cov = f"datasets/{self.dataset}/cov_{self.cov_type}"
-            if self.dataset in ["DESIY1_LRG_Abacus_complete", "DESIY1_LRG_EZ", "DESIY1_LRG_EZ_complete", "DESIY1_LRG_EZ_ffa"]:
+            if self.dataset in ["DESIY1_LRG_EZ_ffa_deltaz0.028", "DESIY1_LRG_Abacus_altmtl_deltaz0.028", "DESIY1_LRG_EZ_complete_deltaz0.028", "DESIY1_LRG_Abacus_complete_deltaz0.028"]:
                 cov = np.loadtxt(f"{path_cov}/EZcovariance_matrix.txt")
                 for bin_z in range(self.nbins):
                     theta_cov[bin_z] = np.loadtxt(f"{path_cov}/theta.txt") * np.pi / 180
@@ -343,12 +343,12 @@ class WThetaDataCovariance:
         indices_theta_allbins_concatenated = np.concatenate(indices_theta_allbins_concatenated)
         
         cov_cut = cov[indices_theta_allbins_concatenated[:, None], indices_theta_allbins_concatenated]
-
+        
         if self.cov_type == "mocks":
-            if self.dataset in ["DESIY1_LRG_Abacus_complete", "DESIY1_LRG_EZ", "DESIY1_LRG_EZ_complete", "DESIY1_LRG_EZ_ffa"]:
-                print("Applying the Hartlap correction to the covariance matrix from the mocks")
+            if self.dataset in ["DESIY1_LRG_EZ_ffa_deltaz0.028", "DESIY1_LRG_Abacus_altmtl_deltaz0.028", "DESIY1_LRG_EZ_complete_deltaz0.028", "DESIY1_LRG_Abacus_complete_deltaz0.028"]:
                 hartlap = (1000 - len(cov_cut) - 2) / (1000 - 1)
                 cov_cut /= hartlap
+                print(f"Applying the Hartlap correction to the covariance matrix from the mocks (cov -> cov/{hartlap})")
         
         return theta_cov_cut, cov_cut
 

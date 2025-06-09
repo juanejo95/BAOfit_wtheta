@@ -259,7 +259,7 @@ class BAOFitInitializer:
                 f"{self.n_broadband}broadband_binsremoved{self.bins_removed}_"
                 f"alphamin{self.alpha_min}_alphamax{self.alpha_max}"
             )
-        elif self.dataset in ["DESIY1_LRG_Abacus_complete", "DESIY1_LRG_EZ", "DESIY1_LRG_EZ_complete", "DESIY1_LRG_EZ_ffa"]:
+        elif self.dataset in ["DESIY1_LRG_EZ_ffa_deltaz0.028", "DESIY1_LRG_Abacus_altmtl_deltaz0.028", "DESIY1_LRG_EZ_complete_deltaz0.028", "DESIY1_LRG_Abacus_complete_deltaz0.028"]:
             path = (
                 f"{self.base_path}/results/{self.dataset}/fit_results{self.include_wiggles}/mock_{self.mock_id}/nz{self.nz_flag}_cov{self.cov_type}_"
                 f"{self.cosmology_template}temp_{self.cosmology_covariance}cov_deltatheta{self.delta_theta}_"
@@ -452,7 +452,7 @@ class BAOFit:
                 ax.tick_params(axis="x", labelsize=18)
                 ax.tick_params(axis="y", labelsize=18)
                 z_edge = self.z_edges[bin_z]
-                if self.dataset not in ["DESIY1_LRG_Abacus_complete", "DESIY1_LRG_EZ", "DESIY1_LRG_EZ_complete", "DESIY1_LRG_EZ_ffa"]:
+                if self.dataset not in ["DESIY1_LRG_EZ_ffa_deltaz0.028", "DESIY1_LRG_Abacus_altmtl_deltaz0.028", "DESIY1_LRG_EZ_complete_deltaz0.028", "DESIY1_LRG_Abacus_complete_deltaz0.028"]:
                     ax.text(0.13, 0.1, f"{z_edge[0]} $< z <$ {z_edge[1]}", ha="center", va="center", transform=ax.transAxes, fontsize=18)
                 else:
                     ax.text(0.13, 0.1, f"{z_edge[0]:.2f} $< z <$ {z_edge[1]:.2f}", ha="center", va="center", transform=ax.transAxes, fontsize=18)
