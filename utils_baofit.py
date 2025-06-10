@@ -251,7 +251,7 @@ class BAOFitInitializer:
                 f"{self.n_broadband}broadband_binsremoved{self.bins_removed}_"
                 f"alphamin{self.alpha_min}_alphamax{self.alpha_max}"
             )
-        elif self.dataset == "DESY6_COLA":
+        elif self.dataset in ["DESY6_COLA", "DESY6_COLA_dec<-23.5", "DESY6_COLA_dec>-23.5", "DESY6_COLA_DR1tiles_noDESI", "DESY6_COLA_DR1tiles_DESIonly"]:
             path = (
                 f"{self.base_path}/results/{self.dataset}/fit_results{self.include_wiggles}/mock_{self.mock_id}/nz{self.nz_flag}_cov{self.cov_type}_"
                 f"{self.cosmology_template}temp_{self.cosmology_covariance}cov_deltatheta{self.delta_theta}_"

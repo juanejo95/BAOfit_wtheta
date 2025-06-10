@@ -33,7 +33,7 @@ class RedshiftDistributions:
                 }
             else:
                 raise ValueError(f"Unknown nz_flag: {self.nz_flag} for dataset: datasets/{self.dataset}")
-        elif self.dataset == "DESY6_COLA":
+        elif self.dataset in ["DESY6_COLA", "DESY6_COLA_dec<-23.5", "DESY6_COLA_dec>-23.5", "DESY6_COLA_DR1tiles_noDESI", "DESY6_COLA_DR1tiles_DESIonly"]:
             self.nz_type = "widebin"
             if self.nz_flag == "mocks":
                 file_path = f"datasets/{self.dataset}/nz/nz_Y6COLA.txt"
@@ -184,7 +184,7 @@ class WThetaDataCovariance:
                     with zf.open(file_in_zip) as filename_wtheta:
                         theta, wtheta = np.loadtxt(filename_wtheta).T[:2]
 
-            elif self.dataset == "DESY6_COLA":
+            elif self.dataset in ["DESY6_COLA", "DESY6_COLA_dec<-23.5", "DESY6_COLA_dec>-23.5", "DESY6_COLA_DR1tiles_noDESI", "DESY6_COLA_DR1tiles_DESIonly"]:
                 if self.mock_id == "mean":
                     with zipfile.ZipFile(zip_file, "r") as zf:
                         # Find all mock files for the given redshift bin
@@ -277,7 +277,7 @@ class WThetaDataCovariance:
                 cov = np.loadtxt(
                     f"{path_cov}/cov_Y6bao_data_DeltaTheta{str(self.delta_theta).replace('.', 'p')}_mask_g_{self.cosmology_covariance}.txt"
                 )
-            elif self.dataset == "DESY6_COLA":
+            elif self.dataset in ["DESY6_COLA", "DESY6_COLA_dec<-23.5", "DESY6_COLA_dec>-23.5", "DESY6_COLA_DR1tiles_noDESI", "DESY6_COLA_DR1tiles_DESIonly"]:
                 if self.cosmology_covariance == "mice":
                     cov = np.loadtxt(
                         f"{path_cov}/cov_Y6bao_cola_deltatheta{str(self.delta_theta).replace('.', 'p')}_mask_g_area2_biasv2.txt"
@@ -286,13 +286,13 @@ class WThetaDataCovariance:
                 #     cov /= 1952
             for bin_z in range(self.nbins):
                 theta_cov[bin_z] = np.loadtxt(f"{path_cov}/delta_theta_{self.delta_theta}_binning.txt")[:, 2] * np.pi / 180 # same for all of them!
-            if self.dataset == "DESY6_dec<-23.5":
+            if self.dataset in ["DESY6_dec<-23.5", "DESY6_COLA_dec<-23.5"]:
                 cov *= 1.456
-            elif self.dataset == "DESY6_dec>-23.5":
+            elif self.dataset in ["DESY6_dec>-23.5", "DESY6_COLA_dec>-23.5"]:
                 cov *= 3.193
-            elif self.dataset == "DESY6_DR1tiles_noDESI":
+            elif self.dataset in ["DESY6_DR1tiles_noDESI", "DESY6_COLA_DR1tiles_noDESI"]:
                 cov *= 1.325
-            elif self.dataset == "DESY6_DR1tiles_DESIonly":
+            elif self.dataset in ["DESY6_DR1tiles_DESIonly", "DESY6_COLA_DR1tiles_DESIonly"]:
                 cov *= 4.075
 
         elif self.cov_type == "mocks":
