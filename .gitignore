@@ -25,5 +25,3 @@ datasets/DESIY1_LRG_Abacus_complete_deltaz0.028
 copy_templates_DESY6.sh
 copy_templates_DESY6_COLA.sh
 copy_templates_DESIY1.sh
-
-nb_table_mocks.ipynb
