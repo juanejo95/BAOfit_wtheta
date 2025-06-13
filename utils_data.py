@@ -192,7 +192,8 @@ class WThetaDataCovariance:
                         mock_files = [name for name in zf.namelist() if pattern.match(name)]
                         
                         if bin_z == 0:
-                            print(f"Averaging the w(theta) over {len(mock_files)} mocks!")
+                            self.n_mocks = len(mock_files)
+                            print(f"Averaging the w(theta) over {self.n_mocks} mocks!")
                         
                         all_wtheta = []
                         theta = None
@@ -222,7 +223,8 @@ class WThetaDataCovariance:
                         mock_files = [name for name in zf.namelist() if pattern.match(name)]
             
                         if bin_z == 0:
-                            print(f"Averaging the w(theta) over {len(mock_files)} mocks!")
+                            self.n_mocks = len(mock_files)
+                            print(f"Averaging the w(theta) over {self.n_mocks} mocks!")
             
                         all_wtheta = []
                         theta = None
@@ -282,8 +284,6 @@ class WThetaDataCovariance:
                     cov = np.loadtxt(
                         f"{path_cov}/cov_Y6bao_cola_deltatheta{str(self.delta_theta).replace('.', 'p')}_mask_g_area2_biasv2.txt"
                     )
-                # if self.mock_id == "mean":
-                #     cov /= 1952
             for bin_z in range(self.nbins):
                 theta_cov[bin_z] = np.loadtxt(f"{path_cov}/delta_theta_{self.delta_theta}_binning.txt")[:, 2] * np.pi / 180 # same for all of them!
             if self.dataset in ["DESY6_dec<-23.5", "DESY6_COLA_dec<-23.5"]:
@@ -349,6 +349,10 @@ class WThetaDataCovariance:
                 hartlap = (1000 - len(cov_cut) - 2) / (1000 - 1)
                 cov_cut /= hartlap
                 print(f"Applying the Hartlap correction to the covariance matrix from the mocks (cov -> cov/{hartlap})")
+
+        if hasattr(self, 'n_mocks'): # if it exists then it means we have averaged the w(theta) over n_mocks and then we need to re-scale the covariance matrix
+            cov_cut /= self.n_mocks
+            print(f"Re-scaling the covariance matrix to fit the mean of the mocks (cov -> cov/{self.n_mocks})")
         
         return theta_cov_cut, cov_cut
 
