@@ -423,43 +423,47 @@ class BAOFit:
             wtheta_fit_best = self.wtheta_template(theta_data_interp, *params_best)
 
             # Plot the w(theta)
-            fig, axs = plt.subplots(self.nbins, 1, figsize=(8, 2 * self.nbins), sharex=True)
+            fig, axs = plt.subplots(self.nbins - len(self.bins_removed), 1, figsize=(8, 2 * (self.nbins - len(self.bins_removed))), sharex=True)
+            i = 0
             for bin_z in range(self.nbins):
-                ax = axs[bin_z]
-                ax.errorbar(
-                    self.theta_data[bin_z] * 180 / np.pi,
-                    100 * (self.theta_data[bin_z] * 180 / np.pi) ** 2 * self.wtheta_data[bin_z],
-                    yerr=100 * (self.theta_data[bin_z] * 180 / np.pi) ** 2 * np.sqrt(np.diag(self.cov))[sum(len(self.theta_data[bin_z2]) for bin_z2 in range(bin_z)):sum(len(self.theta_data[bin_z2]) for bin_z2 in range(bin_z + 1))],
-                    capsize=4, capthick=1.5,
-                    marker="D", markersize=6, markerfacecolor="lightblue", markeredgewidth=1.2,
-                    markeredgecolor="dodgerblue", ecolor="dodgerblue", linestyle="none",
-                    label=self.dataset + " data",
-                    zorder=-1000
-                )
-                ax.plot(
-                    theta_data_interp[bin_z] * 180 / np.pi, 
-                    100 * (theta_data_interp[bin_z] * 180 / np.pi) ** 2 * self.wtheta_model.wtheta_th_interp[bin_z](theta_data_interp[bin_z]),
-                    color="red", linestyle="--",
-                    label="template"
-                )
-                ax.plot(
-                    theta_data_interp[bin_z] * 180 / np.pi, 
-                    100 * (theta_data_interp[bin_z] * 180 / np.pi) ** 2 * wtheta_fit_best[sum(len(theta_data_interp[bin_z2]) for bin_z2 in range(bin_z)):sum(len(theta_data_interp[bin_z2]) for bin_z2 in range(bin_z + 1))],
-                    color="black",
-                    label="best fit"
-                )
-                ax.set_ylabel(r"$10^2 \times \theta^2w(\theta)$", fontsize=22)
-                ax.tick_params(axis="x", labelsize=18)
-                ax.tick_params(axis="y", labelsize=18)
-                z_edge = self.z_edges[bin_z]
-                if self.dataset not in ["DESIY1_LRG_EZ_ffa_deltaz0.028", "DESIY1_LRG_Abacus_altmtl_deltaz0.028", "DESIY1_LRG_EZ_complete_deltaz0.028", "DESIY1_LRG_Abacus_complete_deltaz0.028"]:
-                    ax.text(0.13, 0.1, f"{z_edge[0]} $< z <$ {z_edge[1]}", ha="center", va="center", transform=ax.transAxes, fontsize=18)
-                else:
-                    ax.text(0.13, 0.1, f"{z_edge[0]:.2f} $< z <$ {z_edge[1]:.2f}", ha="center", va="center", transform=ax.transAxes, fontsize=18)
-                if bin_z == 0:
-                    ax.legend(loc="upper left", fontsize=18)
-                if bin_z == self.nbins - 1:
-                    ax.set_xlabel(r"$\theta$ (deg)", fontsize=22)
+                if bin_z not in self.bins_removed:
+                    ax = axs[i]
+                    ax.errorbar(
+                        self.theta_data[bin_z] * 180 / np.pi,
+                        100 * (self.theta_data[bin_z] * 180 / np.pi) ** 2 * self.wtheta_data[bin_z],
+                        yerr=100 * (self.theta_data[bin_z] * 180 / np.pi) ** 2 * np.sqrt(np.diag(self.cov))[sum(len(self.theta_data[bin_z2]) for bin_z2 in range(bin_z)):sum(len(self.theta_data[bin_z2]) for bin_z2 in range(bin_z + 1))],
+                        capsize=4, capthick=1.5,
+                        marker="D", markersize=6, markerfacecolor="lightblue", markeredgewidth=1.2,
+                        markeredgecolor="dodgerblue", ecolor="dodgerblue", linestyle="none",
+                        label=fr"\texttt{{{self.dataset}}}",
+                        zorder=-1000
+                    )
+                    ax.plot(
+                        theta_data_interp[bin_z] * 180 / np.pi, 
+                        100 * (theta_data_interp[bin_z] * 180 / np.pi) ** 2 * self.wtheta_model.wtheta_th_interp[bin_z](theta_data_interp[bin_z]),
+                        color="red", linestyle="--",
+                        label="template"
+                    )
+                    ax.plot(
+                        theta_data_interp[bin_z] * 180 / np.pi, 
+                        100 * (theta_data_interp[bin_z] * 180 / np.pi) ** 2 * wtheta_fit_best[sum(len(theta_data_interp[bin_z2]) for bin_z2 in range(bin_z)):sum(len(theta_data_interp[bin_z2]) for bin_z2 in range(bin_z + 1))],
+                        color="black",
+                        label="best fit"
+                    )
+                    ax.set_ylabel(r"$10^2 \times \theta^2w(\theta)$", fontsize=22)
+                    ax.tick_params(axis="x", labelsize=18)
+                    ax.tick_params(axis="y", labelsize=18)
+                    z_edge = self.z_edges[bin_z]
+                    if self.dataset in ["DESIY1_LRG_EZ_ffa_deltaz0.028", "DESIY1_LRG_Abacus_altmtl_deltaz0.028", "DESIY1_LRG_EZ_complete_deltaz0.028", "DESIY1_LRG_Abacus_complete_deltaz0.028"]:
+                        ax.text(0.13, 0.1, f"{z_edge[0]:.2f} $< z <$ {z_edge[1]:.2f}", ha="center", va="center", transform=ax.transAxes, fontsize=18)
+                    else:
+                        ax.text(0.13, 0.1, f"{z_edge[0]} $< z <$ {z_edge[1]}", ha="center", va="center", transform=ax.transAxes, fontsize=18)
+                        
+                    if i == 0:
+                        ax.legend(loc="upper left", fontsize=18)
+                    if i == self.nbins - len(self.bins_removed) - 1:
+                        ax.set_xlabel(r"$\theta$ (deg)", fontsize=22)
+                    i += 1
             plt.tight_layout()
             plt.savefig(self.path_baofit + "/wtheta_data_bestfit.png", bbox_inches="tight")
             if self.close_fig:
