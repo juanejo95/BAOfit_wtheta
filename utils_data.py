@@ -170,7 +170,6 @@ class WThetaDataCovariance:
         wtheta_data = {}
         
         zip_file = f"datasets/{self.dataset}/wtheta/wtheta.zip"
-        
         for bin_z in range(self.nbins):
             if self.dataset == "DESY6":
                 file_in_zip = (f"wtheta_data_bin{bin_z}_DeltaTheta{self.delta_theta}_weights{self.weight_type}_fstar.txt")
@@ -268,24 +267,46 @@ class WThetaDataCovariance:
         theta_wtheta_data_concatenated = np.concatenate([theta_wtheta_data[bin_z] for bin_z in range(self.nbins)])
         wtheta_data_concatenated = np.concatenate([wtheta_data[bin_z] for bin_z in range(self.nbins)])
 
+        len_datavector = sum(len(theta_wtheta_data[bin_z]) for bin_z in range(self.nbins) if bin_z not in self.bins_removed)
+        print(f"Length of data vector (calculated from the w(theta)): {len_datavector}")
+
         return theta_wtheta_data, wtheta_data
 
     def load_covariance_matrix(self):
         theta_cov = {}
-        
-        if self.cov_type == "cosmolike":
-            path_cov = f"datasets/{self.dataset}/cov_{self.cov_type}"
-            if self.dataset in ["DESY6", "DESY6_dec<-23.5", "DESY6_dec>-23.5", "DESY6_DR1tiles_noDESI", "DESY6_DR1tiles_DESIonly"]:
+
+        path_cov = f"datasets/{self.dataset}/cov_{self.cov_type}"
+
+        if self.dataset in ["DESY6", "DESY6_dec<-23.5", "DESY6_dec>-23.5", "DESY6_DR1tiles_noDESI", "DESY6_DR1tiles_DESIonly"]:
+            if self.cov_type == "cosmolike":
+                for bin_z in range(self.nbins):
+                    theta_cov[bin_z] = np.loadtxt(f"{path_cov}/delta_theta_{self.delta_theta}_binning.txt")[:, 2] * np.pi / 180 # same for all of them!
                 cov = np.loadtxt(
                     f"{path_cov}/cov_Y6bao_data_DeltaTheta{str(self.delta_theta).replace('.', 'p')}_mask_g_{self.cosmology_covariance}.txt"
                 )
-            elif self.dataset in ["DESY6_COLA", "DESY6_COLA_dec<-23.5", "DESY6_COLA_dec>-23.5", "DESY6_COLA_DR1tiles_noDESI", "DESY6_COLA_DR1tiles_DESIonly"]:
+            else:
+                raise NotImplementedError("Such covariance does not exist.")
+
+        elif self.dataset in ["DESY6_COLA", "DESY6_COLA_dec<-23.5", "DESY6_COLA_dec>-23.5", "DESY6_COLA_DR1tiles_noDESI", "DESY6_COLA_DR1tiles_DESIonly"]:
+            if self.cov_type == "cosmolike":
                 if self.cosmology_covariance == "mice":
+                    for bin_z in range(self.nbins):
+                        theta_cov[bin_z] = np.loadtxt(f"{path_cov}/delta_theta_{self.delta_theta}_binning.txt")[:, 2] * np.pi / 180 # same for all of them!
                     cov = np.loadtxt(
                         f"{path_cov}/cov_Y6bao_cola_deltatheta{str(self.delta_theta).replace('.', 'p')}_mask_g_area2_biasv2.txt"
                     )
-            for bin_z in range(self.nbins):
-                theta_cov[bin_z] = np.loadtxt(f"{path_cov}/delta_theta_{self.delta_theta}_binning.txt")[:, 2] * np.pi / 180 # same for all of them!
+                else:
+                    raise NotImplementedError("Such covariance does not exist.")
+            elif self.cov_type == "mocks":
+                for bin_z in range(self.nbins):
+                    theta_cov[bin_z] = np.loadtxt(f"{path_cov}/theta_DeltaTheta{self.delta_theta}.txt") # same for all of them!
+                cov = np.loadtxt(
+                    f"{path_cov}/cov_COLA_DeltaTheta{self.delta_theta}.txt"
+                )
+            else:
+                raise NotImplementedError("Such covariance does not exist.")
+
+        if self.cov_type == "cosmolike":
             if self.dataset in ["DESY6_dec<-23.5", "DESY6_COLA_dec<-23.5"]:
                 cov *= 1.456
             elif self.dataset in ["DESY6_dec>-23.5", "DESY6_COLA_dec>-23.5"]:
@@ -295,20 +316,30 @@ class WThetaDataCovariance:
             elif self.dataset in ["DESY6_DR1tiles_DESIonly", "DESY6_COLA_DR1tiles_DESIonly"]:
                 cov *= 4.075
 
-        elif self.cov_type == "mocks":
-            path_cov = f"datasets/{self.dataset}/cov_{self.cov_type}"
-            if self.dataset in ["DESIY1_LRG_EZ_ffa_deltaz0.028", "DESIY1_LRG_Abacus_altmtl_deltaz0.028", "DESIY1_LRG_EZ_complete_deltaz0.028", "DESIY1_LRG_Abacus_complete_deltaz0.028"]:
-                cov = np.loadtxt(f"{path_cov}/EZcovariance_matrix.txt")
+        if self.dataset in ["DESIY1_LRG_EZ_ffa_deltaz0.028", "DESIY1_LRG_Abacus_altmtl_deltaz0.028", "DESIY1_LRG_EZ_complete_deltaz0.028", "DESIY1_LRG_Abacus_complete_deltaz0.028"]:
+            if self.cov_type == "mocks":
                 for bin_z in range(self.nbins):
                     theta_cov[bin_z] = np.loadtxt(f"{path_cov}/theta.txt") * np.pi / 180
-        else:
-            raise NotImplementedError("Such covariance does not exist.")
+                cov = np.loadtxt(f"{path_cov}/EZcovariance_matrix.txt")
+            else:
+                raise NotImplementedError("Such covariance does not exist.")
+
+        # cov_adjusted = np.zeros_like(cov)
+        # for bin_z1 in range(self.nbins):
+        #     for bin_z2 in range(self.nbins):
+        #         slice_1 = slice(bin_z1 * len(theta_cov[bin_z1]), (bin_z1 + 1) * len(theta_cov[bin_z1]))
+        #         slice_2 = slice(bin_z2 * len(theta_cov[bin_z2]), (bin_z2 + 1) * len(theta_cov[bin_z2]))
+        #         if bin_z1 == bin_z2 or (bin_z1 not in self.bins_removed and bin_z2 not in self.bins_removed):
+        #             cov_adjusted[slice_1, slice_2] = cov[slice_1, slice_2]
+        # cov = cov_adjusted
 
         cov_adjusted = np.zeros_like(cov)
         for bin_z1 in range(self.nbins):
+            len_1 = len(theta_cov[bin_z1])
             for bin_z2 in range(self.nbins):
-                slice_1 = slice(bin_z1 * len(theta_cov[bin_z1]), (bin_z1 + 1) * len(theta_cov[bin_z1]))
-                slice_2 = slice(bin_z2 * len(theta_cov[bin_z2]), (bin_z2 + 1) * len(theta_cov[bin_z2]))
+                len_2 = len(theta_cov[bin_z2])
+                slice_1 = slice(bin_z1 * len_1, (bin_z1 + 1) * len_1)
+                slice_2 = slice(bin_z2 * len_2, (bin_z2 + 1) * len_2)
                 if bin_z1 == bin_z2 or (bin_z1 not in self.bins_removed and bin_z2 not in self.bins_removed):
                     cov_adjusted[slice_1, slice_2] = cov[slice_1, slice_2]
         cov = cov_adjusted
@@ -343,16 +374,23 @@ class WThetaDataCovariance:
         indices_theta_allbins_concatenated = np.concatenate(indices_theta_allbins_concatenated)
         
         cov_cut = cov[indices_theta_allbins_concatenated[:, None], indices_theta_allbins_concatenated]
+
+        len_datavector = sum(len(theta_cov_cut[bin_z]) for bin_z in range(self.nbins) if bin_z not in self.bins_removed)
+        print(f"Length of data vector (calculated from the covariance): {len_datavector}")
         
         if self.cov_type == "mocks":
             if self.dataset in ["DESIY1_LRG_EZ_ffa_deltaz0.028", "DESIY1_LRG_Abacus_altmtl_deltaz0.028", "DESIY1_LRG_EZ_complete_deltaz0.028", "DESIY1_LRG_Abacus_complete_deltaz0.028"]:
-                hartlap = (1000 - len(cov_cut) - 2) / (1000 - 1)
-                cov_cut /= hartlap
-                print(f"Applying the Hartlap correction to the covariance matrix from the mocks (cov -> cov/{hartlap})")
-
-        if hasattr(self, 'n_mocks'): # if it exists then it means we have averaged the w(theta) over n_mocks and then we need to re-scale the covariance matrix
-            cov_cut /= self.n_mocks
-            print(f"Re-scaling the covariance matrix to fit the mean of the mocks (cov -> cov/{self.n_mocks})")
+                hartlap = (1000 - len_datavector - 2) / (1000 - 1) # it's always 1000 since it's the number of EZ mocks
+            elif self.dataset in ["DESY6_COLA", "DESY6_COLA_dec<-23.5", "DESY6_COLA_dec>-23.5", "DESY6_COLA_DR1tiles_noDESI", "DESY6_COLA_DR1tiles_DESIonly"]:
+                # hartlap = (1952 - len_datavector - 2) / (1952 - 1)
+                hartlap = 1
+            cov_cut /= hartlap
+            print(f"Applying the Hartlap correction to the covariance matrix from the mocks (cov -> cov/{hartlap})")
+            
+            if self.dataset in ["DESIY1_LRG_Abacus_altmtl_deltaz0.028", "DESIY1_LRG_Abacus_complete_deltaz0.028"]:
+                if hasattr(self, 'n_mocks'): # if it exists then it means we have averaged the w(theta) over n_mocks and then we need to re-scale the covariance matrix
+                    cov_cut /= self.n_mocks
+                    print(f"Re-scaling the covariance matrix to fit the mean of the mocks (cov -> cov/{self.n_mocks})")
         
         return theta_cov_cut, cov_cut
 
