@@ -127,6 +127,63 @@ class RedshiftDistributions:
         elif self.nz_type == "thinbin":
             raise NotImplementedError(f"No need to implement for dataset datasets/{self.dataset}.")
 
+class GetThetaLimits:
+    def __init__(self, dataset, nz_flag, dynamical_theta_limits=False):
+        """
+        Initialize the GetThetaLimits class.
+
+        Parameters:
+        - dataset (str): Dataset identifier (e.g., "DESY6").
+        - nz_flag (str): Identifier for the n(z).
+        - dynamical_theta_limits (bool): Whether to give dynamical theta ranges or not.
+        """
+        self.dataset = dataset
+        self.nz_flag = nz_flag
+        self.dynamical_theta_limits = dynamical_theta_limits
+        self.theta_width = 4
+
+        # Redshift distribution
+        self.redshift_distributions = RedshiftDistributions(self.dataset, self.nz_flag, verbose=False)
+        self.nbins = self.redshift_distributions.nbins
+
+    def _angular_bao_scale_deg(self, z, cosmo):
+        rd_mpc = cosmo.rs_drag / cosmo.h
+        DA = cosmo.comoving_angular_distance(z)
+        theta_rad = rd_mpc / ((1 + z) * DA)
+        return np.degrees(theta_rad)
+
+    def _get_dynamical_limits(self):
+        from cosmoprimo.fiducial import DESI
+        cosmo = DESI()
+        theta_min, theta_max = {}, {}
+        
+        for bin_z in range(self.nbins):
+            z_low, z_high = self.redshift_distributions.z_edges[bin_z]
+            zeff = 0.5 * (z_low + z_high)
+            theta_bao = self._angular_bao_scale_deg(zeff, cosmo) + (zeff - 0.4)
+            theta_min[bin_z] = theta_bao - self.theta_width / 2
+            theta_max[bin_z] = theta_bao + self.theta_width / 2
+        
+        return theta_min, theta_max
+
+    def _get_constant_limits(self):
+        if "DESY6" in self.dataset:
+            theta_max_val = 5
+        elif "DESIY1" in self.dataset:
+            theta_max_val = 8
+        else:
+            raise ValueError(f"Static theta limits not defined for dataset '{self.dataset}'")
+
+        theta_min = {bin_z: 0.5 for bin_z in range(self.nbins)}
+        theta_max = {bin_z: theta_max_val for bin_z in range(self.nbins)}
+        return theta_min, theta_max
+
+    def get_theta_limits(self):
+        if self.dynamical_theta_limits:
+            return self._get_dynamical_limits()
+        else:
+            return self._get_constant_limits()
+
 class WThetaDataCovariance:
     def __init__(self, dataset, weight_type, mock_id, nz_flag, cov_type, cosmology_covariance, delta_theta, 
                  theta_min, theta_max, bins_removed, diag_only, remove_crosscov):
