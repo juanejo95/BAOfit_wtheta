@@ -1,5 +1,7 @@
 import numpy as np
 import os
+import hashlib
+import json
 from scipy.optimize import minimize
 from scipy.interpolate import interp1d
 from pathos.multiprocessing import ProcessingPool as Pool
@@ -232,6 +234,12 @@ class BAOFitInitializer:
         self.alpha_min = alpha_min
         self.alpha_max = alpha_max
         self.Nalpha = 10**3
+
+        def hash_theta_dict(theta_dict):
+            json_str = json.dumps(theta_dict, sort_keys=True)
+            return hashlib.sha256(json_str.encode()).hexdigest()[:8] # 8 first digits should be enough since SHA-256 has 2**64 ~ 1.8*10**19 possible 8-character hex values
+        self.theta_min_hash = hash_theta_dict(self.theta_min)
+        self.theta_max_hash = hash_theta_dict(self.theta_max)
         
         # Path to save the BAO-fit results
         self.path_baofit = self._generate_path_baofit()
@@ -247,7 +255,7 @@ class BAOFitInitializer:
             path = (
                 f"{self.base_path}/results/{self.dataset}/fit_results{self.include_wiggles}/weight_{self.weight_type}/nz{self.nz_flag}_cov{self.cov_type}_"
                 f"{self.cosmology_template}temp_{self.cosmology_covariance}cov_deltatheta{self.delta_theta}_"
-                # f"thetamin{self.theta_min}_thetamax{self.theta_max}_"
+                f"thetamin{self.theta_min_hash}_thetamax{self.theta_max_hash}_"
                 f"{self.n_broadband}broadband_binsremoved{self.bins_removed}_"
                 f"alphamin{self.alpha_min}_alphamax{self.alpha_max}"
             )
@@ -255,7 +263,7 @@ class BAOFitInitializer:
             path = (
                 f"{self.base_path}/results/{self.dataset}/fit_results{self.include_wiggles}/mock_{self.mock_id}/nz{self.nz_flag}_cov{self.cov_type}_"
                 f"{self.cosmology_template}temp_{self.cosmology_covariance}cov_deltatheta{self.delta_theta}_"
-                # f"thetamin{self.theta_min}_thetamax{self.theta_max}_"
+                f"thetamin{self.theta_min_hash}_thetamax{self.theta_max_hash}_"
                 f"{self.n_broadband}broadband_binsremoved{self.bins_removed}_"
                 f"alphamin{self.alpha_min}_alphamax{self.alpha_max}"
             )
@@ -263,7 +271,7 @@ class BAOFitInitializer:
             path = (
                 f"{self.base_path}/results/{self.dataset}/fit_results{self.include_wiggles}/mock_{self.mock_id}/nz{self.nz_flag}_cov{self.cov_type}_"
                 f"{self.cosmology_template}temp_{self.cosmology_covariance}cov_deltatheta{self.delta_theta}_"
-                # f"thetamin{self.theta_min}_thetamax{self.theta_max}_"
+                f"thetamin{self.theta_min_hash}_thetamax{self.theta_max_hash}_"
                 f"{self.n_broadband}broadband_binsremoved{self.bins_removed}_"
                 f"alphamin{self.alpha_min}_alphamax{self.alpha_max}"
             )
@@ -423,7 +431,9 @@ class BAOFit:
             wtheta_fit_best = self.wtheta_template(theta_data_interp, *params_best)
 
             # Plot the w(theta)
-            fig, axs = plt.subplots(self.nbins - len(self.bins_removed), 1, figsize=(8, 2 * (self.nbins - len(self.bins_removed))), sharex=True)
+            nbins_eff = self.nbins - len(self.bins_removed)
+            fig, axs = plt.subplots(nbins_eff, 1, figsize=(8, 2 * (nbins_eff)), sharex=True)
+            axs = np.atleast_1d(axs)
             i = 0
             for bin_z in range(self.nbins):
                 if bin_z not in self.bins_removed:
@@ -461,10 +471,11 @@ class BAOFit:
                         
                     if i == 0:
                         ax.legend(loc="upper left", fontsize=18)
-                    if i == self.nbins - len(self.bins_removed) - 1:
+                    if i == nbins_eff - 1:
                         ax.set_xlabel(r"$\theta$ (deg)", fontsize=22)
                     i += 1
-            plt.tight_layout()
+            if nbins_eff != 1:
+                fig.tight_layout()
             plt.savefig(self.path_baofit + "/wtheta_data_bestfit.png", bbox_inches="tight")
             if self.close_fig:
                 plt.close(fig)
