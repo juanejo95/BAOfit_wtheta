@@ -194,7 +194,6 @@ class BAOFitInitializer:
                  alpha_min=0.8, alpha_max=1.2, verbose=True, base_path=None):
         """
         Initializes the BAOFitInitializer class.
-
         Parameters:
         - include_wiggles (str): Whether to include BAO wiggles.
         - dataset (str): Dataset identifier (e.g., "DESY6").
@@ -226,55 +225,81 @@ class BAOFitInitializer:
         self.n_broadband = n_broadband
         self.bins_removed = bins_removed
         self.verbose = verbose
-        
-        if base_path is None:
-            base_path = f"{os.environ['PSCRATCH']}/BAOfit_wtheta"
-        self.base_path = base_path
-        
         self.alpha_min = alpha_min
         self.alpha_max = alpha_max
         self.Nalpha = 10**3
 
-        def hash_theta_dict(theta_dict):
-            json_str = json.dumps(theta_dict, sort_keys=True)
-            return hashlib.sha256(json_str.encode()).hexdigest()[:8] # 8 first digits should be enough since SHA-256 has 2**64 ~ 1.8*10**19 possible 8-character hex values
-        self.theta_min_hash = hash_theta_dict(self.theta_min)
-        self.theta_max_hash = hash_theta_dict(self.theta_max)
-        
-        # Path to save the BAO-fit results
+        if base_path is None:
+            base_path = f"{os.environ['PSCRATCH']}/BAOfit_wtheta"
+        self.base_path = base_path
+
+        # Compute hash and config
+        self.config_dict = self._build_config_dict()
+        self.hash_path = self._compute_hash_path(self.config_dict)
         self.path_baofit = self._generate_path_baofit()
 
-        # Create the directory if it does not exist
+        # Create output directory
         os.makedirs(self.path_baofit, exist_ok=True)
+
+        # Save or verify configuration
+        self._check_or_save_config()
+
         if verbose:
             print(f"Saving output to: {self.path_baofit}")
+
+    def _build_config_dict(self):
+        """Build a dictionary of relevant configuration parameters for hashing and saving."""
+        return {
+            "nz_flag": self.nz_flag,
+            "cov_type": self.cov_type,
+            "cosmology_template": self.cosmology_template,
+            "cosmology_covariance": self.cosmology_covariance,
+            "delta_theta": self.delta_theta,
+            "theta_min": self.theta_min,
+            "theta_max": self.theta_max,
+            "n_broadband": self.n_broadband,
+            "bins_removed": self.bins_removed,
+            "alpha_min": self.alpha_min,
+            "alpha_max": self.alpha_max,
+        }
+
+    def _compute_hash_path(self, config):
+        """Compute a unique hash from the configuration dictionary."""
+        json_str = json.dumps(config, sort_keys=True)
+        return hashlib.sha256(json_str.encode()).hexdigest()[:12]
+
+    def _check_or_save_config(self):
+        """Save config.json or compare with existing one to ensure it matches."""
+        def normalize(obj):
+            if isinstance(obj, dict):
+                return {str(k): normalize(v) for k, v in sorted(obj.items())}
+            elif isinstance(obj, list):
+                return [normalize(x) for x in obj]
+            else:
+                return obj
+    
+        config_path = os.path.join(self.path_baofit, "config.json")
+        if os.path.exists(config_path):
+            with open(config_path, "r") as f:
+                existing_config = json.load(f)
+            norm_existing = normalize(existing_config)
+            norm_current = normalize(self.config_dict)
+            if norm_existing != norm_current:
+                raise ValueError(
+                    f"Config mismatch in existing path: {config_path}\n"
+                    f"Expected:\n{json.dumps(norm_existing, indent=2)}\n"
+                    f"Found:\n{json.dumps(norm_current, indent=2)}"
+                )
+        else:
+            with open(config_path, "w") as f:
+                json.dump(self.config_dict, f, indent=2)
 
     def _generate_path_baofit(self):
         """Generate the save path for the BAO fit results."""
         if self.dataset in ["DESY6", "DESY6_dec_below-23.5", "DESY6_dec_above-23.5", "DESY6_DR1tiles_noDESI", "DESY6_DR1tiles_DESIonly"]:
-            path = (
-                f"{self.base_path}/results/{self.dataset}/fit_results{self.include_wiggles}/weight_{self.weight_type}/nz{self.nz_flag}_cov{self.cov_type}_"
-                f"{self.cosmology_template}temp_{self.cosmology_covariance}cov_deltatheta{self.delta_theta}_"
-                f"thetamin{self.theta_min_hash}_thetamax{self.theta_max_hash}_"
-                f"{self.n_broadband}broadband_binsremoved{self.bins_removed}_"
-                f"alphamin{self.alpha_min}_alphamax{self.alpha_max}"
-            )
-        elif self.dataset in ["DESY6_COLA", "DESY6_COLA_dec_below-23.5", "DESY6_COLA_dec_above-23.5", "DESY6_COLA_DR1tiles_noDESI", "DESY6_COLA_DR1tiles_DESIonly"]:
-            path = (
-                f"{self.base_path}/results/{self.dataset}/fit_results{self.include_wiggles}/mock_{self.mock_id}/nz{self.nz_flag}_cov{self.cov_type}_"
-                f"{self.cosmology_template}temp_{self.cosmology_covariance}cov_deltatheta{self.delta_theta}_"
-                f"thetamin{self.theta_min_hash}_thetamax{self.theta_max_hash}_"
-                f"{self.n_broadband}broadband_binsremoved{self.bins_removed}_"
-                f"alphamin{self.alpha_min}_alphamax{self.alpha_max}"
-            )
-        elif self.dataset in ["DESIY1_LRG_EZ_ffa_deltaz0.028", "DESIY1_LRG_Abacus_altmtl_deltaz0.028", "DESIY1_LRG_EZ_complete_deltaz0.028", "DESIY1_LRG_Abacus_complete_deltaz0.028"]:
-            path = (
-                f"{self.base_path}/results/{self.dataset}/fit_results{self.include_wiggles}/mock_{self.mock_id}/nz{self.nz_flag}_cov{self.cov_type}_"
-                f"{self.cosmology_template}temp_{self.cosmology_covariance}cov_deltatheta{self.delta_theta}_"
-                f"thetamin{self.theta_min_hash}_thetamax{self.theta_max_hash}_"
-                f"{self.n_broadband}broadband_binsremoved{self.bins_removed}_"
-                f"alphamin{self.alpha_min}_alphamax{self.alpha_max}"
-            )
+            path = f"{self.base_path}/results/{self.dataset}/fit_results{self.include_wiggles}/weight_{self.weight_type}/{self.hash_path}"
+        elif any(substr in self.dataset for substr in ["COLA", "EZ", "Abacus"]):
+            path = f"{self.base_path}/results/{self.dataset}/fit_results{self.include_wiggles}/mock_{self.mock_id}/{self.hash_path}"
         else:
             raise ValueError(f"Unsupported dataset: {self.dataset}")
         return path
