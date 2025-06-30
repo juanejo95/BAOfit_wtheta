@@ -19,7 +19,7 @@ class RedshiftDistributions:
         self.verbose = verbose
         
         # File paths based on dataset and nz_flag
-        if self.dataset in ["DESY6", "DESY6_dec<-23.5", "DESY6_dec>-23.5", "DESY6_DR1tiles_noDESI", "DESY6_DR1tiles_DESIonly"]: # they have the same n(z), but in different paths
+        if self.dataset in ["DESY6", "DESY6_dec_below-23.5", "DESY6_dec_above-23.5", "DESY6_DR1tiles_noDESI", "DESY6_DR1tiles_DESIonly"]: # they have the same n(z), but in different paths
             self.nz_type = "widebin"
             if self.nz_flag == "fid":
                 file_path = f"datasets/{self.dataset}/nz/nz_DNFpdf_shift_stretch_wrtclusteringz1-4_wrtVIPERS5-6_v2.txt"
@@ -33,7 +33,7 @@ class RedshiftDistributions:
                 }
             else:
                 raise ValueError(f"Unknown nz_flag: {self.nz_flag} for dataset: datasets/{self.dataset}")
-        elif self.dataset in ["DESY6_COLA", "DESY6_COLA_dec<-23.5", "DESY6_COLA_dec>-23.5", "DESY6_COLA_DR1tiles_noDESI", "DESY6_COLA_DR1tiles_DESIonly"]:
+        elif self.dataset in ["DESY6_COLA", "DESY6_COLA_dec_below-23.5", "DESY6_COLA_dec_above-23.5", "DESY6_COLA_DR1tiles_noDESI", "DESY6_COLA_DR1tiles_DESIonly"]:
             self.nz_type = "widebin"
             if self.nz_flag == "mocks":
                 file_path = f"datasets/{self.dataset}/nz/nz_Y6COLA.txt"
@@ -234,13 +234,13 @@ class WThetaDataCovariance:
                     with zf.open(file_in_zip) as filename_wtheta:
                         theta, wtheta = np.loadtxt(filename_wtheta).T
                         
-            elif self.dataset in ["DESY6_dec<-23.5", "DESY6_dec>-23.5", "DESY6_DR1tiles_noDESI", "DESY6_DR1tiles_DESIonly"]:
+            elif self.dataset in ["DESY6_dec_below-23.5", "DESY6_dec_above-23.5", "DESY6_DR1tiles_noDESI", "DESY6_DR1tiles_DESIonly"]:
                 file_in_zip = (f"wtheta_data_bin{bin_z}_DeltaTheta{self.delta_theta}_weights{self.weight_type}.txt")
                 with zipfile.ZipFile(zip_file, "r") as zf:
                     with zf.open(file_in_zip) as filename_wtheta:
                         theta, wtheta = np.loadtxt(filename_wtheta).T[:2]
 
-            elif self.dataset in ["DESY6_COLA", "DESY6_COLA_dec<-23.5", "DESY6_COLA_dec>-23.5", "DESY6_COLA_DR1tiles_noDESI", "DESY6_COLA_DR1tiles_DESIonly"]:
+            elif self.dataset in ["DESY6_COLA", "DESY6_COLA_dec_below-23.5", "DESY6_COLA_dec_above-23.5", "DESY6_COLA_DR1tiles_noDESI", "DESY6_COLA_DR1tiles_DESIonly"]:
                 if self.mock_id == "mean":
                     with zipfile.ZipFile(zip_file, "r") as zf:
                         # Find all mock files for the given redshift bin
@@ -334,7 +334,7 @@ class WThetaDataCovariance:
 
         path_cov = f"datasets/{self.dataset}/cov_{self.cov_type}"
 
-        if self.dataset in ["DESY6", "DESY6_dec<-23.5", "DESY6_dec>-23.5", "DESY6_DR1tiles_noDESI", "DESY6_DR1tiles_DESIonly"]:
+        if self.dataset in ["DESY6", "DESY6_dec_below-23.5", "DESY6_dec_above-23.5", "DESY6_DR1tiles_noDESI", "DESY6_DR1tiles_DESIonly"]:
             if self.cov_type == "cosmolike":
                 for bin_z in range(self.nbins):
                     theta_cov[bin_z] = np.loadtxt(f"{path_cov}/delta_theta_{self.delta_theta}_binning.txt")[:, 2] * np.pi / 180 # same for all of them!
@@ -344,7 +344,7 @@ class WThetaDataCovariance:
             else:
                 raise NotImplementedError("Such covariance does not exist.")
 
-        elif self.dataset in ["DESY6_COLA", "DESY6_COLA_dec<-23.5", "DESY6_COLA_dec>-23.5", "DESY6_COLA_DR1tiles_noDESI", "DESY6_COLA_DR1tiles_DESIonly"]:
+        elif self.dataset in ["DESY6_COLA", "DESY6_COLA_dec_below-23.5", "DESY6_COLA_dec_above-23.5", "DESY6_COLA_DR1tiles_noDESI", "DESY6_COLA_DR1tiles_DESIonly"]:
             if self.cov_type == "cosmolike":
                 if self.cosmology_covariance == "mice":
                     for bin_z in range(self.nbins):
@@ -363,15 +363,15 @@ class WThetaDataCovariance:
             else:
                 raise NotImplementedError("Such covariance does not exist.")
 
-        if self.cov_type == "cosmolike":
-            if self.dataset in ["DESY6_dec<-23.5", "DESY6_COLA_dec<-23.5"]:
-                cov *= 1.456
-            elif self.dataset in ["DESY6_dec>-23.5", "DESY6_COLA_dec>-23.5"]:
-                cov *= 3.193
-            elif self.dataset in ["DESY6_DR1tiles_noDESI", "DESY6_COLA_DR1tiles_noDESI"]:
-                cov *= 1.325
-            elif self.dataset in ["DESY6_DR1tiles_DESIonly", "DESY6_COLA_DR1tiles_DESIonly"]:
-                cov *= 4.075
+        # if self.cov_type == "cosmolike":
+        #     if self.dataset in ["DESY6_dec_below-23.5", "DESY6_COLA_dec_below-23.5"]:
+        #         cov *= 1.456
+        #     elif self.dataset in ["DESY6_dec_above-23.5", "DESY6_COLA_dec_above-23.5"]:
+        #         cov *= 3.193
+        #     elif self.dataset in ["DESY6_DR1tiles_noDESI", "DESY6_COLA_DR1tiles_noDESI"]:
+        #         cov *= 1.325
+        #     elif self.dataset in ["DESY6_DR1tiles_DESIonly", "DESY6_COLA_DR1tiles_DESIonly"]:
+        #         cov *= 4.075
 
         if self.dataset in ["DESIY1_LRG_EZ_ffa_deltaz0.028", "DESIY1_LRG_Abacus_altmtl_deltaz0.028", "DESIY1_LRG_EZ_complete_deltaz0.028", "DESIY1_LRG_Abacus_complete_deltaz0.028"]:
             if self.cov_type == "mocks":
@@ -438,7 +438,7 @@ class WThetaDataCovariance:
         if self.cov_type == "mocks":
             if self.dataset in ["DESIY1_LRG_EZ_ffa_deltaz0.028", "DESIY1_LRG_Abacus_altmtl_deltaz0.028", "DESIY1_LRG_EZ_complete_deltaz0.028", "DESIY1_LRG_Abacus_complete_deltaz0.028"]:
                 hartlap = (1000 - len_datavector - 2) / (1000 - 1) # it's always 1000 since it's the number of EZ mocks
-            elif self.dataset in ["DESY6_COLA", "DESY6_COLA_dec<-23.5", "DESY6_COLA_dec>-23.5", "DESY6_COLA_DR1tiles_noDESI", "DESY6_COLA_DR1tiles_DESIonly"]:
+            elif self.dataset in ["DESY6_COLA", "DESY6_COLA_dec_below-23.5", "DESY6_COLA_dec_above-23.5", "DESY6_COLA_DR1tiles_noDESI", "DESY6_COLA_DR1tiles_DESIonly"]:
                 # hartlap = (1952 - len_datavector - 2) / (1952 - 1)
                 hartlap = 1
             cov_cut /= hartlap

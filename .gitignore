@@ -5,13 +5,13 @@
 **/results
 **/templates
 
-datasets/DESY6_dec<-23.5/wtheta/wtheta.zip
-datasets/DESY6_dec>-23.5/wtheta/wtheta.zip
+datasets/DESY6_dec_below-23.5/wtheta/wtheta.zip
+datasets/DESY6_dec_above-23.5/wtheta/wtheta.zip
 datasets/DESY6_DR1tiles_noDESI/wtheta/wtheta.zip
 datasets/DESY6_DR1tiles_DESIonly/wtheta/wtheta.zip
 
-datasets/DESY6_COLA_dec<-23.5/wtheta/wtheta.zip
-datasets/DESY6_COLA_dec>-23.5/wtheta/wtheta.zip
+datasets/DESY6_COLA_dec_below-23.5/wtheta/wtheta.zip
+datasets/DESY6_COLA_dec_above-23.5/wtheta/wtheta.zip
 datasets/DESY6_COLA_DR1tiles_noDESI/wtheta/wtheta.zip
 datasets/DESY6_COLA_DR1tiles_DESIonly/wtheta/wtheta.zip
 
@@ -25,3 +25,5 @@ datasets/DESIY1_LRG_Abacus_complete_deltaz0.028
 copy_templates_DESY6.sh
 copy_templates_DESY6_COLA.sh
 copy_templates_DESIY1.sh
+
+plots/
