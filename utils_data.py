@@ -341,6 +341,12 @@ class WThetaDataCovariance:
                 cov = np.loadtxt(
                     f"{path_cov}/cov_Y6bao_data_DeltaTheta{str(self.delta_theta).replace('.', 'p')}_mask_g_{self.cosmology_covariance}.txt"
                 )
+            elif self.cov_type == "mocks":
+                for bin_z in range(self.nbins):
+                    theta_cov[bin_z] = np.loadtxt(f"{path_cov}/theta_DeltaTheta{self.delta_theta}.txt") # same for all of them!
+                cov = np.loadtxt(
+                    f"{path_cov}/cov_COLA_DeltaTheta{self.delta_theta}.txt"
+                )
             else:
                 raise NotImplementedError("Such covariance does not exist.")
 
@@ -438,9 +444,8 @@ class WThetaDataCovariance:
         if self.cov_type == "mocks":
             if self.dataset in ["DESIY1_LRG_EZ_ffa_deltaz0.028", "DESIY1_LRG_Abacus_altmtl_deltaz0.028", "DESIY1_LRG_EZ_complete_deltaz0.028", "DESIY1_LRG_Abacus_complete_deltaz0.028"]:
                 hartlap = (1000 - len_datavector - 2) / (1000 - 1) # it's always 1000 since it's the number of EZ mocks
-            elif self.dataset in ["DESY6_COLA", "DESY6_COLA_dec_below-23.5", "DESY6_COLA_dec_above-23.5", "DESY6_COLA_DR1tiles_noDESI", "DESY6_COLA_DR1tiles_DESIonly"]:
-                # hartlap = (1952 - len_datavector - 2) / (1952 - 1)
-                hartlap = 1
+            elif "DESY6" in self.dataset:
+                hartlap = (1952 - len_datavector - 2) / (1952 - 1)
             cov_cut /= hartlap
             print(f"Applying the Hartlap correction to the covariance matrix from the mocks (cov -> cov/{hartlap})")
             
