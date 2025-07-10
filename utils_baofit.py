@@ -117,7 +117,7 @@ class WThetaModel:
         self.nbins = self.template_initializer.nbins
         self.z_edges = self.template_initializer.z_edges
 
-        letters = list("ABCDEFG")  # Letters from A to G (depending on the number of broadband-term parameters)
+        letters = list("ABCDEFGH")  # Letters from A to H (depending on the number of broadband-term parameters)
         params = ["alpha"]
         for bin_z in range(self.nbins):
             params.extend([f"{letter}_{bin_z}" for letter in letters])
@@ -174,7 +174,8 @@ class WThetaModel:
             params[(1 + self.n_broadband_max) * bin_z + 3] / theta[bin_z]**2 +  # D
             params[(1 + self.n_broadband_max) * bin_z + 4] * theta[bin_z] +  # E
             params[(1 + self.n_broadband_max) * bin_z + 5] * theta[bin_z]**2 +  # F
-            params[(1 + self.n_broadband_max) * bin_z + 6] * theta[bin_z]**3  # G
+            params[(1 + self.n_broadband_max) * bin_z + 6] * theta[bin_z]**3 + # G
+            params[(1 + self.n_broadband_max) * bin_z + 7] * theta[bin_z]**4  # H
             for bin_z in range(self.nbins)
         ])
         return wtheta_template
@@ -335,7 +336,7 @@ class BAOFit:
         self.close_fig = close_fig
         self.use_multiprocessing = use_multiprocessing
         self.n_cpu = n_cpu if n_cpu is not None else 20
-        
+
         if self.use_multiprocessing:
             print(f"WARNING: The BAO fit will be run in parallel using {self.n_cpu} CPUs!")
         
@@ -377,7 +378,7 @@ class BAOFit:
 
     def least_squares(self, params):
         """Least squares function to minimize."""
-        wtheta_th = self.wtheta_template(self.theta_data,*params)
+        wtheta_th = self.wtheta_template(self.theta_data, *params)
         diff = self.wtheta_data_concatenated - wtheta_th
         return diff @ self.inv_cov @ diff
 
@@ -386,7 +387,7 @@ class BAOFit:
         fit_params = np.zeros(self.n_params)
         fit_params[0] = alpha
         fit_params[self.pos_amplitude] = amplitude_params
-        return self.pseudo_inverse_matrix @ (self.wtheta_data_concatenated - self.wtheta_template(self.theta_data,*fit_params))
+        return self.pseudo_inverse_matrix @ (self.wtheta_data_concatenated - self.wtheta_template(self.theta_data, *fit_params))
 
     def regularized_least_squares(self, amplitude_params, alpha):
         """Least squares with broadband parameters."""
