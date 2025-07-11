@@ -10,7 +10,7 @@ class CosmologicalParameters:
         - cosmology_template (str): Cosmology for the template.
         - verbose (bool): Whether to print messages.
         """
-        if cosmology_template == "planck":
+        if cosmology_template in ["planck", "planck_old"]:
             H_0 = 67.6  # Hubble constant in km/s/Mpc
             h = H_0 / 100
 
@@ -34,7 +34,7 @@ class CosmologicalParameters:
                 engine="class"
             )
 
-        elif cosmology_template == "mice":
+        elif cosmology_template in ["mice", "mice_old"]:
             H_0 = 70.0  # Hubble constant in km/s/Mpc
             h = H_0 / 100
 

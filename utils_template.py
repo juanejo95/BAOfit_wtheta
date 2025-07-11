@@ -73,9 +73,28 @@ class TemplateInitializer:
         
         # Initialize cosmology
         self._initialize_cosmology()
-        
-        self.kh = 10 ** np.linspace(np.log10(10**-4 / self.cosmo.h), np.log10(10**2), self.Nk)
-        self.k = self.kh * self.cosmo.h
+
+        # Create the k and kh vectors
+        if "old" in self.cosmology_template:
+            if self.cosmology_template == "mice_old":
+                pk_old = np.loadtxt("pk_old/PkMICE_linear_nowiggle_GaussianSmoothing0p3_z0.dat")
+            elif self.cosmology_template == "planck_old":
+                pk_old = np.loadtxt("pk_old/Pk_Challenage_Lin_Smooth.dat")
+            
+            self.k_old = pk_old[:, 0] * self.cosmo.h
+            self.pk_wigg_old = pk_old[:, 1] / self.cosmo.h**3 * (2 * np.pi)**3
+            self.pk_nowigg_old = pk_old[:, 2] / self.cosmo.h**3 * (2 * np.pi)**3
+            
+            if self.cosmology_template == 'mice_old':
+                kh = 10**np.linspace(np.log10(self.k_old.min() / self.cosmo.h), np.log10(10**2), self.Nk)
+            elif self.cosmology_template == 'planck_old':
+                kh = 10**np.linspace(np.log10(self.k_old.min() / self.cosmo.h), np.log10(self.k_old.max() / self.cosmo.h), self.Nk)
+            self.kh = kh
+            self.k = self.kh * self.cosmo.h
+
+        else:
+            self.kh = 10**np.linspace(np.log10(10**-4 / self.cosmo.h), np.log10(10**2), self.Nk)
+            self.k = self.kh * self.cosmo.h
 
     def get_path_template(self):
         """Return the generated path_template."""
@@ -204,21 +223,31 @@ class PowerSpectrumMultipoles:
         self.ells = self.template_initializer.ells
         self.components = self.template_initializer.components
         self.legendre = self.template_initializer.legendre
+        self.cosmology_template = self.template_initializer.cosmology_template
         
         # Initialize power spectrum
         self._initialize_power_spectrum()
 
     def _initialize_power_spectrum(self):
         """Initialize k and P(k) values."""
-        # Power spectrum with wiggles
-        pkz = self.cosmo.get_fourier(engine="class").pk_interpolator()
-        pk = pkz.to_1d(z=0)
-        self.Pk_wigg = pk(self.kh) / self.cosmo.h**3
 
-        # Power spectrum without wiggles
-        pknow = PowerSpectrumBAOFilter(pk, engine="peakaverage", cosmo_fid=self.cosmo).smooth_pk_interpolator()
-        self.Pk_nowigg = pknow(self.kh) / self.cosmo.h**3
-        
+        if "old" in self.cosmology_template:
+            # Power spectrum with wiggles
+            self.Pk_wigg = np.interp(self.k, self.template_initializer.k_old, self.template_initializer.pk_wigg_old)
+
+            # Power spectrum without wiggles
+            self.Pk_nowigg = np.interp(self.k, self.template_initializer.k_old, self.template_initializer.pk_nowigg_old)
+            
+        else:
+            # Power spectrum with wiggles
+            pkz = self.cosmo.get_fourier(engine="class").pk_interpolator()
+            pk = pkz.to_1d(z=0)
+            self.Pk_wigg = pk(self.kh) / self.cosmo.h**3
+    
+            # Power spectrum without wiggles
+            pknow = PowerSpectrumBAOFilter(pk, engine="peakaverage", cosmo_fid=self.cosmo).smooth_pk_interpolator()
+            self.Pk_nowigg = pknow(self.kh) / self.cosmo.h**3
+
         np.savetxt(f"{self.path_template}/Pk_full.txt", np.column_stack([self.k, self.Pk_wigg, self.Pk_nowigg]))
 
         self.Sigma_0, self.delta_Sigma_0 = self.compute_sigma_parameters()
@@ -228,7 +257,7 @@ class PowerSpectrumMultipoles:
         k_s = 0.2 * self.cosmo.h
         ell_BAO = 110 / self.cosmo.h
 
-        q = 10 ** np.linspace(np.log10(self.k.min()), np.log10(k_s), self.Nk)
+        q = 10**np.linspace(np.log10(self.k.min()), np.log10(k_s), self.Nk)
         Pq_nowigg = np.interp(q, self.k, self.Pk_nowigg)
 
         x = q * ell_BAO

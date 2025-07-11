@@ -27,3 +27,5 @@ copy_templates_DESY6_COLA.sh
 copy_templates_DESIY1.sh
 
 plots/
+
+pk_old/
