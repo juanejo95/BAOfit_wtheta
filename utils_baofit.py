@@ -310,7 +310,7 @@ class BAOFitInitializer:
         return self.path_baofit
 
 class BAOFit:
-    def __init__(self, baofit_initializer, wtheta_model, theta_data, wtheta_data, cov, close_fig=True, use_multiprocessing=False, n_cpu=None):
+    def __init__(self, baofit_initializer, wtheta_model, theta_data, wtheta_data, cov, close_fig=True, use_multiprocessing=False, n_cpu=None, overwrite=False):
         """
         Initialize the BAOFit class.
 
@@ -320,9 +320,10 @@ class BAOFit:
         - theta_data (array): Theta data for fitting.
         - wtheta_data (dict): Data w(theta) for each bin.
         - cov (array): Covariance matrix.
-        - close_fig (bool): Whether to close the resulting figures or nnot.
+        - close_fig (bool): Whether to close the resulting figures or not.
         - use_multiprocessing (bool): Whether to run the BAO fits using multiprocessing.
         - n_cpu (int): Number of CPUs for parallel processing (default: 20).
+        - overwrite (bool): Whether to overwrite existing results or not.
         """
         self.wtheta_model = wtheta_model
         self.wtheta_template = wtheta_model.get_wtheta_template()
@@ -336,6 +337,7 @@ class BAOFit:
         self.close_fig = close_fig
         self.use_multiprocessing = use_multiprocessing
         self.n_cpu = n_cpu if n_cpu is not None else 20
+        self.overwrite = overwrite
 
         if self.use_multiprocessing:
             print(f"WARNING: The BAO fit will be run in parallel using {self.n_cpu} CPUs!")
@@ -402,170 +404,176 @@ class BAOFit:
 
     def fit(self):
         """Perform the fitting procedure to find the best-fit alpha."""
-        tol_minimize = 10**-7
-        alpha_vector = np.linspace(self.alpha_min, self.alpha_max, self.Nalpha)
-        chi2_vector = np.zeros_like(alpha_vector)
 
-        def compute_chi2(alpha):
-            amplitude_params = minimize(self.regularized_least_squares, x0=np.ones(self.nbins), method="SLSQP",
-                                        bounds=[(0, None)] * self.nbins, tol=tol_minimize, args=(alpha,))
-            chi2_value = self.regularized_least_squares(amplitude_params.x, alpha)
-            return chi2_value
-        
-        if self.use_multiprocessing:
-            with Pool(self.n_cpu) as pool:
-                chi2_vector = np.array(pool.map(compute_chi2, alpha_vector, chunksize=len(alpha_vector) // self.n_cpu))
+        if os.path.exists(os.path.join(self.path_baofit, "fit_results.txt")) and not self.overwrite:
+            print("The output already exists! Loading the results and skipping BAO fit...")
+            alpha_best, err_alpha, chi2_best, dof = np.loadtxt(os.path.join(self.path_baofit, "fit_results.txt")).T
+
         else:
-            chi2_vector = np.array([compute_chi2(alpha) for alpha in alpha_vector])
+            tol_minimize = 10**-7
+            alpha_vector = np.linspace(self.alpha_min, self.alpha_max, self.Nalpha)
+            chi2_vector = np.zeros_like(alpha_vector)
+    
+            def compute_chi2(alpha):
+                amplitude_params = minimize(self.regularized_least_squares, x0=np.ones(self.nbins), method="SLSQP",
+                                            bounds=[(0, None)] * self.nbins, tol=tol_minimize, args=(alpha,))
+                chi2_value = self.regularized_least_squares(amplitude_params.x, alpha)
+                return chi2_value
             
-        best = np.argmin(chi2_vector)
-        alpha_best = alpha_vector[best]
-        chi2_best = chi2_vector[best]
-
-        np.savetxt(self.path_baofit + "/likelihood_data.txt", np.column_stack([alpha_vector, chi2_vector]))
-
-        if chi2_vector[0] > chi2_best + 1 and chi2_vector[-1] > chi2_best + 1:
-            alpha_down = None
-            alpha_up = None
-
-            for i in np.arange(0, best)[::-1]:
-                if chi2_vector[i] < chi2_best + 1 and chi2_vector[i - 1] > chi2_best + 1:
-                    alpha_down = alpha_vector[i]
-                    break
-
-            for i in np.arange(best, self.Nalpha):
-                if chi2_vector[i] < chi2_best + 1 and chi2_vector[i + 1] > chi2_best + 1:
-                    alpha_up = alpha_vector[i]
-                    break
-
-            err_alpha = (alpha_up - alpha_down) / 2
-
-            amplitude_params_best = minimize(self.regularized_least_squares, x0=np.ones(self.nbins), method="SLSQP",
-                                            bounds=[(0, None)] * self.nbins, tol=tol_minimize, args=(alpha_best)).x
-
-            broadband_params_best = self.broadband_params(amplitude_params_best, alpha_best)
-
-            params_best = np.zeros(self.n_params)
-            params_best[0] = alpha_best
-            params_best[self.pos_amplitude] = amplitude_params_best
-            params_best[self.pos_broadband] = broadband_params_best
-
-            theta_data_interp = {}
-            for bin_z in range(self.nbins):
-                theta_data_interp[bin_z] = np.linspace(self.theta_data[bin_z][0], self.theta_data[bin_z][-1], 10**3)
-
-            wtheta_fit_best = self.wtheta_template(theta_data_interp, *params_best)
-
-            # Plot the w(theta)
-            nbins_eff = self.nbins - len(self.bins_removed)
-            fig, axs = plt.subplots(nbins_eff, 1, figsize=(8, 2 * (nbins_eff)), sharex=True)
-            axs = np.atleast_1d(axs)
-            i = 0
-            for bin_z in range(self.nbins):
-                if bin_z not in self.bins_removed:
-                    ax = axs[i]
-                    ax.errorbar(
-                        self.theta_data[bin_z] * 180 / np.pi,
-                        100 * (self.theta_data[bin_z] * 180 / np.pi) ** 2 * self.wtheta_data[bin_z],
-                        yerr=100 * (self.theta_data[bin_z] * 180 / np.pi) ** 2 * np.sqrt(np.diag(self.cov))[sum(len(self.theta_data[bin_z2]) for bin_z2 in range(bin_z)):sum(len(self.theta_data[bin_z2]) for bin_z2 in range(bin_z + 1))],
-                        capsize=4, capthick=1.5,
-                        marker="D", markersize=6, markerfacecolor="lightblue", markeredgewidth=1.2,
-                        markeredgecolor="dodgerblue", ecolor="dodgerblue", linestyle="none",
-                        label=fr"\texttt{{{self.dataset}}}",
-                        zorder=-1000
-                    )
-                    ax.plot(
-                        theta_data_interp[bin_z] * 180 / np.pi, 
-                        100 * (theta_data_interp[bin_z] * 180 / np.pi) ** 2 * self.wtheta_model.wtheta_th_interp[bin_z](theta_data_interp[bin_z]),
-                        color="red", linestyle="--",
-                        label="template"
-                    )
-                    ax.plot(
-                        theta_data_interp[bin_z] * 180 / np.pi, 
-                        100 * (theta_data_interp[bin_z] * 180 / np.pi) ** 2 * wtheta_fit_best[sum(len(theta_data_interp[bin_z2]) for bin_z2 in range(bin_z)):sum(len(theta_data_interp[bin_z2]) for bin_z2 in range(bin_z + 1))],
-                        color="black",
-                        label="best fit"
-                    )
-                    ax.set_ylabel(r"$10^2 \times \theta^2w(\theta)$", fontsize=22)
-                    ax.tick_params(axis="x", labelsize=18)
-                    ax.tick_params(axis="y", labelsize=18)
-                    z_edge = self.z_edges[bin_z]
-                    if self.dataset in ["DESIY1_LRG_EZ_ffa_deltaz0.028", "DESIY1_LRG_Abacus_altmtl_deltaz0.028", "DESIY1_LRG_EZ_complete_deltaz0.028", "DESIY1_LRG_Abacus_complete_deltaz0.028"]:
-                        ax.text(0.13, 0.1, f"{z_edge[0]:.2f} $< z <$ {z_edge[1]:.2f}", ha="center", va="center", transform=ax.transAxes, fontsize=18)
-                    else:
-                        ax.text(0.13, 0.1, f"{z_edge[0]} $< z <$ {z_edge[1]}", ha="center", va="center", transform=ax.transAxes, fontsize=18)
-                        
-                    if i == 0:
-                        ax.legend(loc="upper left", fontsize=18)
-                    if i == nbins_eff - 1:
-                        ax.set_xlabel(r"$\theta$ (deg)", fontsize=22)
-                    i += 1
-            if nbins_eff != 1:
-                fig.tight_layout()
-            plt.savefig(self.path_baofit + "/wtheta_data_bestfit.png", bbox_inches="tight")
-            if self.close_fig:
-                plt.close(fig)
+            if self.use_multiprocessing:
+                with Pool(self.n_cpu) as pool:
+                    chi2_vector = np.array(pool.map(compute_chi2, alpha_vector, chunksize=len(alpha_vector) // self.n_cpu))
+            else:
+                chi2_vector = np.array([compute_chi2(alpha) for alpha in alpha_vector])
                 
-            # Save the w(theta)
-            np.savetxt(
-                self.path_baofit + "/wtheta_data_bestfit.txt",
-                np.column_stack([
-                    np.concatenate([self.theta_data[bin_z] for bin_z in range(self.nbins)]),
-                    self.wtheta_data_concatenated,
-                    self.wtheta_template(self.theta_data, *params_best),
-                    np.sqrt(np.diag(self.cov))
-                ])
-            )
-
-            # Plot the chi2 vs alpha
-            fig, ax = plt.subplots(figsize=(6, 5))
-            ax.plot(alpha_vector, chi2_vector, color="dodgerblue", lw=2, label=r"$\chi^2$ profile")
-            ax.axhline(chi2_best + 1, color="black", linestyle="--", linewidth=1, label=r"$\chi^2_{\mathrm{min}} + 1$")
-            ax.plot(alpha_best, chi2_best, "d", color="orange", markersize=8, label=fr"$\alpha = {alpha_best:.4f}$")
-            ax.axvspan(alpha_down, alpha_up, color="k", alpha=0.1, label=fr"$\sigma_\alpha = {err_alpha:.4f}$")
-            ax.set_xlim(self.alpha_min, self.alpha_max)
-            ax.set_xlabel(r"$\alpha$", fontsize=16)
-            ax.set_ylabel(r"$\chi^2$", fontsize=16)
-            ax.xaxis.set_major_locator(plt.MaxNLocator(5))
-            ax.yaxis.set_major_locator(plt.MaxNLocator(5))
-            ax.tick_params(axis="both", which="major", labelsize=12)
-            ax.legend(loc="lower right", fontsize=12)
-            plt.savefig(self.path_baofit + "/chi2_profile.png", bbox_inches="tight", dpi=300)
-            if self.close_fig:
-                plt.close(fig)
-
-        else:
-            print("The fit does not have the 1-sigma region between " + str(self.alpha_min) + " and " + str(self.alpha_max) +".")
-
-            err_alpha = 9999
-            
-            # Plot the chi2 vs alpha
-            fig, ax = plt.subplots(figsize=(6, 5))
-            ax.plot(alpha_vector, chi2_vector, color="dodgerblue", lw=2, label=r"$\chi^2$ profile")
-            ax.axhline(chi2_best + 1, color="black", linestyle="--", linewidth=1, label=r"$\chi^2_{\mathrm{min}} + 1$")
-            ax.plot(alpha_best, chi2_best, "d", color="orange", markersize=8, label=fr"$\alpha = {alpha_best:.4f}$")
-            ax.set_xlim(self.alpha_min, self.alpha_max)
-            ax.set_xlabel(r"$\alpha$", fontsize=16)
-            ax.set_ylabel(r"$\chi^2$", fontsize=16)
-            ax.xaxis.set_major_locator(plt.MaxNLocator(5))
-            ax.yaxis.set_major_locator(plt.MaxNLocator(5))
-            ax.tick_params(axis="both", which="major", labelsize=12)
-            ax.legend(loc="lower right", fontsize=12)
-            plt.savefig(self.path_baofit + "/chi2_profile_bad.png", bbox_inches="tight", dpi=300)
-            if self.close_fig:
-                plt.close(fig)
-
-        # Calculate degrees of freedom (dof)
-        dof = len(self.wtheta_data_concatenated) - self.n_params_true
-        for bin_z in self.bins_removed:
-            dof -= len(self.wtheta_data[bin_z])
-
-        # Save the results
-        results = np.array([[alpha_best, err_alpha, chi2_best, dof]])
-        np.savetxt(self.path_baofit + "/fit_results.txt", results, fmt=["%.4f", "%.4f", "%.4f", "%d"])
+            best = np.argmin(chi2_vector)
+            alpha_best = alpha_vector[best]
+            chi2_best = chi2_vector[best]
+    
+            np.savetxt(os.path.join(self.path_baofit, "likelihood_data.txt"), np.column_stack([alpha_vector, chi2_vector]))
+    
+            if chi2_vector[0] > chi2_best + 1 and chi2_vector[-1] > chi2_best + 1:
+                alpha_down = None
+                alpha_up = None
+    
+                for i in np.arange(0, best)[::-1]:
+                    if chi2_vector[i] < chi2_best + 1 and chi2_vector[i - 1] > chi2_best + 1:
+                        alpha_down = alpha_vector[i]
+                        break
+    
+                for i in np.arange(best, self.Nalpha):
+                    if chi2_vector[i] < chi2_best + 1 and chi2_vector[i + 1] > chi2_best + 1:
+                        alpha_up = alpha_vector[i]
+                        break
+    
+                err_alpha = (alpha_up - alpha_down) / 2
+    
+                amplitude_params_best = minimize(self.regularized_least_squares, x0=np.ones(self.nbins), method="SLSQP",
+                                                bounds=[(0, None)] * self.nbins, tol=tol_minimize, args=(alpha_best)).x
+    
+                broadband_params_best = self.broadband_params(amplitude_params_best, alpha_best)
+    
+                params_best = np.zeros(self.n_params)
+                params_best[0] = alpha_best
+                params_best[self.pos_amplitude] = amplitude_params_best
+                params_best[self.pos_broadband] = broadband_params_best
+    
+                theta_data_interp = {}
+                for bin_z in range(self.nbins):
+                    theta_data_interp[bin_z] = np.linspace(self.theta_data[bin_z][0], self.theta_data[bin_z][-1], 10**3)
+    
+                wtheta_fit_best = self.wtheta_template(theta_data_interp, *params_best)
+    
+                # Plot the w(theta)
+                nbins_eff = self.nbins - len(self.bins_removed)
+                fig, axs = plt.subplots(nbins_eff, 1, figsize=(8, 2 * (nbins_eff)), sharex=True)
+                axs = np.atleast_1d(axs)
+                i = 0
+                for bin_z in range(self.nbins):
+                    if bin_z not in self.bins_removed:
+                        ax = axs[i]
+                        ax.errorbar(
+                            self.theta_data[bin_z] * 180 / np.pi,
+                            100 * (self.theta_data[bin_z] * 180 / np.pi) ** 2 * self.wtheta_data[bin_z],
+                            yerr=100 * (self.theta_data[bin_z] * 180 / np.pi) ** 2 * np.sqrt(np.diag(self.cov))[sum(len(self.theta_data[bin_z2]) for bin_z2 in range(bin_z)):sum(len(self.theta_data[bin_z2]) for bin_z2 in range(bin_z + 1))],
+                            capsize=4, capthick=1.5,
+                            marker="D", markersize=6, markerfacecolor="lightblue", markeredgewidth=1.2,
+                            markeredgecolor="dodgerblue", ecolor="dodgerblue", linestyle="none",
+                            label=fr"\texttt{{{self.dataset}}}",
+                            zorder=-1000
+                        )
+                        ax.plot(
+                            theta_data_interp[bin_z] * 180 / np.pi, 
+                            100 * (theta_data_interp[bin_z] * 180 / np.pi) ** 2 * self.wtheta_model.wtheta_th_interp[bin_z](theta_data_interp[bin_z]),
+                            color="red", linestyle="--",
+                            label="template"
+                        )
+                        ax.plot(
+                            theta_data_interp[bin_z] * 180 / np.pi, 
+                            100 * (theta_data_interp[bin_z] * 180 / np.pi) ** 2 * wtheta_fit_best[sum(len(theta_data_interp[bin_z2]) for bin_z2 in range(bin_z)):sum(len(theta_data_interp[bin_z2]) for bin_z2 in range(bin_z + 1))],
+                            color="black",
+                            label="best fit"
+                        )
+                        ax.set_ylabel(r"$10^2 \times \theta^2w(\theta)$", fontsize=22)
+                        ax.tick_params(axis="x", labelsize=18)
+                        ax.tick_params(axis="y", labelsize=18)
+                        z_edge = self.z_edges[bin_z]
+                        if self.dataset in ["DESIY1_LRG_EZ_ffa_deltaz0.028", "DESIY1_LRG_Abacus_altmtl_deltaz0.028", "DESIY1_LRG_EZ_complete_deltaz0.028", "DESIY1_LRG_Abacus_complete_deltaz0.028"]:
+                            ax.text(0.13, 0.1, f"{z_edge[0]:.2f} $< z <$ {z_edge[1]:.2f}", ha="center", va="center", transform=ax.transAxes, fontsize=18)
+                        else:
+                            ax.text(0.13, 0.1, f"{z_edge[0]} $< z <$ {z_edge[1]}", ha="center", va="center", transform=ax.transAxes, fontsize=18)
+                            
+                        if i == 0:
+                            ax.legend(loc="upper left", fontsize=18)
+                        if i == nbins_eff - 1:
+                            ax.set_xlabel(r"$\theta$ (deg)", fontsize=22)
+                        i += 1
+                if nbins_eff != 1:
+                    fig.tight_layout()
+                plt.savefig(os.path.join(self.path_baofit, "wtheta_data_bestfit.png"), bbox_inches="tight")
+                if self.close_fig:
+                    plt.close(fig)
+                    
+                # Save the w(theta)
+                np.savetxt(
+                    os.path.join(self.path_baofit, "wtheta_data_bestfit.txt"),
+                    np.column_stack([
+                        np.concatenate([self.theta_data[bin_z] for bin_z in range(self.nbins)]),
+                        self.wtheta_data_concatenated,
+                        self.wtheta_template(self.theta_data, *params_best),
+                        np.sqrt(np.diag(self.cov))
+                    ])
+                )
+    
+                # Plot the chi2 vs alpha
+                fig, ax = plt.subplots(figsize=(6, 5))
+                ax.plot(alpha_vector, chi2_vector, color="dodgerblue", lw=2, label=r"$\chi^2$ profile")
+                ax.axhline(chi2_best + 1, color="black", linestyle="--", linewidth=1, label=r"$\chi^2_{\mathrm{min}} + 1$")
+                ax.plot(alpha_best, chi2_best, "d", color="orange", markersize=8, label=fr"$\alpha = {alpha_best:.4f}$")
+                ax.axvspan(alpha_down, alpha_up, color="k", alpha=0.1, label=fr"$\sigma_\alpha = {err_alpha:.4f}$")
+                ax.set_xlim(self.alpha_min, self.alpha_max)
+                ax.set_xlabel(r"$\alpha$", fontsize=16)
+                ax.set_ylabel(r"$\chi^2$", fontsize=16)
+                ax.xaxis.set_major_locator(plt.MaxNLocator(5))
+                ax.yaxis.set_major_locator(plt.MaxNLocator(5))
+                ax.tick_params(axis="both", which="major", labelsize=12)
+                ax.legend(loc="lower right", fontsize=12)
+                plt.savefig(os.path.join(self.path_baofit, "chi2_profile.png"), bbox_inches="tight", dpi=300)
+                if self.close_fig:
+                    plt.close(fig)
+    
+            else:
+                print(f"The fit does not have the 1-sigma region between {self.alpha_min} and {self.alpha_max}!")
+    
+                err_alpha = 9999
+                
+                # Plot the chi2 vs alpha
+                fig, ax = plt.subplots(figsize=(6, 5))
+                ax.plot(alpha_vector, chi2_vector, color="dodgerblue", lw=2, label=r"$\chi^2$ profile")
+                ax.axhline(chi2_best + 1, color="black", linestyle="--", linewidth=1, label=r"$\chi^2_{\mathrm{min}} + 1$")
+                ax.plot(alpha_best, chi2_best, "d", color="orange", markersize=8, label=fr"$\alpha = {alpha_best:.4f}$")
+                ax.set_xlim(self.alpha_min, self.alpha_max)
+                ax.set_xlabel(r"$\alpha$", fontsize=16)
+                ax.set_ylabel(r"$\chi^2$", fontsize=16)
+                ax.xaxis.set_major_locator(plt.MaxNLocator(5))
+                ax.yaxis.set_major_locator(plt.MaxNLocator(5))
+                ax.tick_params(axis="both", which="major", labelsize=12)
+                ax.legend(loc="lower right", fontsize=12)
+                plt.savefig(os.path.join(self.path_baofit, "chi2_profile_bad.png"), bbox_inches="tight", dpi=300)
+                if self.close_fig:
+                    plt.close(fig)
+    
+            # Calculate degrees of freedom (dof)
+            dof = len(self.wtheta_data_concatenated) - self.n_params_true
+            for bin_z in self.bins_removed:
+                dof -= len(self.wtheta_data[bin_z])
+    
+            # Save the results
+            results = np.array([[alpha_best, err_alpha, chi2_best, dof]])
+            np.savetxt(os.path.join(self.path_baofit, "fit_results.txt"), results, fmt=["%.4f", "%.4f", "%.4f", "%d"])
 
         # Print them to the console as well
         print(f"Best-fit alpha = {alpha_best:.4f} ± {err_alpha:.4f}")
-        print(f"chi2/dof = {chi2_best:.4f}/{dof}")
+        print(f"chi2/dof = {chi2_best:.4f}/{dof}\n")
 
         return alpha_best, err_alpha, chi2_best, dof
