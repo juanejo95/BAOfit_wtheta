@@ -280,7 +280,7 @@ class PowerSpectrumMultipoles:
         return np.sqrt(
             self.mu_vector**2 * Sigma_paral**2
             + (1 - self.mu_vector**2) * Sigma_perp**2
-            + f * self.mu_vector**2 * (self.mu_vector**2 - 1) * delta_Sigma**2
+            + f**2 * self.mu_vector**2 * (self.mu_vector**2 - 1) * delta_Sigma**2
         )
 
     def compute_pk_ell_singlek(self, bin_z, f, Sigma_tot_vector, i):

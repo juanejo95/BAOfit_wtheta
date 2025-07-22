@@ -574,6 +574,6 @@ class BAOFit:
 
         # Print them to the console as well
         print(f"Best-fit alpha = {alpha_best:.4f} ± {err_alpha:.4f}")
-        print(f"chi2/dof = {chi2_best:.4f}/{dof}\n")
+        print(f"chi2/dof = {chi2_best:.1f}/{int(dof)}\n")
 
         return alpha_best, err_alpha, chi2_best, dof
