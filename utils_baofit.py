@@ -498,7 +498,7 @@ class BAOFit:
                         ax.tick_params(axis="x", labelsize=18)
                         ax.tick_params(axis="y", labelsize=18)
                         z_edge = self.z_edges[bin_z]
-                        if self.dataset in ["DESIY1_LRG_EZ_ffa_deltaz0.028", "DESIY1_LRG_Abacus_altmtl_deltaz0.028", "DESIY1_LRG_EZ_complete_deltaz0.028", "DESIY1_LRG_Abacus_complete_deltaz0.028"]:
+                        if "DESIY1_LRG" in self.dataset:
                             ax.text(0.13, 0.1, f"{z_edge[0]:.2f} $< z <$ {z_edge[1]:.2f}", ha="center", va="center", transform=ax.transAxes, fontsize=18)
                         else:
                             ax.text(0.13, 0.1, f"{z_edge[0]} $< z <$ {z_edge[1]}", ha="center", va="center", transform=ax.transAxes, fontsize=18)

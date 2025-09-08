@@ -42,7 +42,7 @@ class RedshiftDistributions:
                 }
             else:
                 raise ValueError(f"Unknown nz_flag: {self.nz_flag} for dataset: datasets/{self.dataset}")
-        elif self.dataset in ["DESIY1_LRG_EZ_ffa_deltaz0.028", "DESIY1_LRG_Abacus_altmtl_deltaz0.028", "DESIY1_LRG_EZ_complete_deltaz0.028", "DESIY1_LRG_Abacus_complete_deltaz0.028"]:
+        elif "DESIY1_LRG" in self.dataset:
             self.nz_type = "thinbin"
             if self.nz_flag == "mocks":
                 file_path = f"datasets/{self.dataset}/nz/mean_nzs.txt"
@@ -271,7 +271,7 @@ class WThetaDataCovariance:
                         with zf.open(file_in_zip) as filename_wtheta:
                             theta, wtheta = np.loadtxt(filename_wtheta).T
                             
-            elif self.dataset in ["DESIY1_LRG_EZ_ffa_deltaz0.028", "DESIY1_LRG_Abacus_altmtl_deltaz0.028", "DESIY1_LRG_EZ_complete_deltaz0.028", "DESIY1_LRG_Abacus_complete_deltaz0.028"]:
+            elif "DESIY1_LRG" in self.dataset:
                 if self.mock_id == "mean":
                     with zipfile.ZipFile(zip_file, "r") as zf:
                         # pattern = re.compile(r"deltaz0p02_deltath0p4_thetacuts/twoangcorr_mock_\d+\.npz")
@@ -369,17 +369,7 @@ class WThetaDataCovariance:
             else:
                 raise NotImplementedError("Such covariance does not exist.")
 
-        # if self.cov_type == "cosmolike":
-        #     if self.dataset in ["DESY6_dec_below-23.5", "DESY6_COLA_dec_below-23.5"]:
-        #         cov *= 1.456
-        #     elif self.dataset in ["DESY6_dec_above-23.5", "DESY6_COLA_dec_above-23.5"]:
-        #         cov *= 3.193
-        #     elif self.dataset in ["DESY6_DR1tiles_noDESI", "DESY6_COLA_DR1tiles_noDESI"]:
-        #         cov *= 1.325
-        #     elif self.dataset in ["DESY6_DR1tiles_DESIonly", "DESY6_COLA_DR1tiles_DESIonly"]:
-        #         cov *= 4.075
-
-        if self.dataset in ["DESIY1_LRG_EZ_ffa_deltaz0.028", "DESIY1_LRG_Abacus_altmtl_deltaz0.028", "DESIY1_LRG_EZ_complete_deltaz0.028", "DESIY1_LRG_Abacus_complete_deltaz0.028"]:
+        if "DESIY1_LRG" in self.dataset:
             if self.cov_type == "mocks":
                 for bin_z in range(self.nbins):
                     theta_cov[bin_z] = np.loadtxt(f"{path_cov}/theta.txt") * np.pi / 180
@@ -442,14 +432,14 @@ class WThetaDataCovariance:
         print(f"Length of data vector (calculated from the covariance): {len_datavector}")
         
         if self.cov_type == "mocks":
-            if self.dataset in ["DESIY1_LRG_EZ_ffa_deltaz0.028", "DESIY1_LRG_Abacus_altmtl_deltaz0.028", "DESIY1_LRG_EZ_complete_deltaz0.028", "DESIY1_LRG_Abacus_complete_deltaz0.028"]:
+            if "DESIY1_LRG" in self.dataset:
                 hartlap = (1000 - len_datavector - 2) / (1000 - 1) # it's always 1000 since it's the number of EZ mocks
             elif "DESY6" in self.dataset:
                 hartlap = (1952 - len_datavector - 2) / (1952 - 1)
             cov_cut /= hartlap
             print(f"Applying the Hartlap correction to the covariance matrix from the mocks (cov -> cov/{hartlap})")
             
-            if self.dataset in ["DESIY1_LRG_Abacus_altmtl_deltaz0.028", "DESIY1_LRG_Abacus_complete_deltaz0.028"]:
+            if "DESIY1_LRG_Abacus" in self.dataset: # only used for the Abacus
                 if hasattr(self, 'n_mocks'): # if it exists then it means we have averaged the w(theta) over n_mocks and then we need to re-scale the covariance matrix
                     cov_cut /= self.n_mocks
                     print(f"Re-scaling the covariance matrix to fit the mean of the mocks (cov -> cov/{self.n_mocks})")
