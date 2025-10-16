@@ -121,27 +121,14 @@ class WThetaModel:
 
         params = ["alpha"]
         for bin_z in range(self.nbins):
-            params.extend(f"A_{bin_z}") # amplitude parameter
+            params.extend([f"A_{bin_z}"]) # amplitude parameter
             params.extend([f"a_{pb}_{bin_z}" for pb in self.pow_broadband]) # broadband parameters
         self.names_params =  np.array(params)
 
         self.n_params_max = len(self.names_params)
 
-        # Prepare the index array
-        self.indices_params = self._generate_indices()
-
-        self.names_params = self.names_params[self.indices_params]
-
         # Interpolation of the theoretical wtheta
         self.wtheta_th_interp = self._load_and_interpolate_wtheta()
-
-    def _generate_indices(self):
-        """Generate index array based on the number of broadband bins."""
-        indices_params_bb = np.arange(1, 1 + (self.n_broadband + 1))  # Only nuisance parameters
-        indices_params = np.concatenate([[0], indices_params_bb])  # Including alpha
-        for bin_z in range(1, self.nbins):
-            indices_params = np.concatenate([indices_params, indices_params_bb + bin_z * (1 + self.n_broadband)])
-        return indices_params
 
     def _load_and_interpolate_wtheta(self):
         """Load and interpolate the theoretical w(theta)."""
@@ -195,9 +182,7 @@ class WThetaModel:
     def get_wtheta_template(self):
         """Return the wtheta_template function."""
         def wtheta_template(theta, *args):
-            pars = np.zeros(self.n_params_max)
-            pars[self.indices_params] = args
-            return self.wtheta_template_raw(theta, *pars)
+            return self.wtheta_template_raw(theta, *args)
 
         return wtheta_template
 
@@ -538,7 +523,13 @@ class BAOFit:
                         np.sqrt(np.diag(self.cov))
                     ])
                 )
-    
+
+                # Save all best-fit parameters as a dictionary
+                np.save(
+                    f"{self.path_baofit}/all_params_bestfit.npy",
+                    {self.wtheta_model.names_params[i]: params_best[i] for i in range(self.n_params)}
+                )
+
                 # Plot the chi2 vs alpha
                 fig, ax = plt.subplots(figsize=(6, 5))
                 ax.plot(alpha_vector, chi2_vector, color="dodgerblue", lw=2, label=r"$\chi^2$ profile")
