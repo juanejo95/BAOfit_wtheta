@@ -82,7 +82,7 @@ class WThetaModelGalaxyBias:
         return wtheta
 
 class WThetaModel:
-    def __init__(self, include_wiggles, dataset, nz_flag, cosmology_template, n_broadband, galaxy_bias, base_path=None):
+    def __init__(self, include_wiggles, dataset, nz_flag, cosmology_template, pow_broadband, galaxy_bias, base_path=None):
         """
         Initialize the WThetaModel class.
 
@@ -91,7 +91,7 @@ class WThetaModel:
         - dataset (str): Dataset identifier (e.g., "DESY6").
         - nz_flag (str): Identifier for the n(z).
         - cosmology_template (str): Cosmology for the template.
-        - n_broadband (int): Number of broadband parameters.
+        - pow_broadband (list): Powers of theta for the broadband parameters.
         - galaxy_bias (dict): Dictionary containing the linear galaxy bias for each redshift bin.
         - base_path (str): Path to save the results. Needed to load the template.
         """
@@ -99,8 +99,10 @@ class WThetaModel:
         self.dataset = dataset
         self.nz_flag = nz_flag
         self.cosmology_template = cosmology_template
-        self.n_broadband = n_broadband
+        self.pow_broadband = sorted(pow_broadband)
         self.galaxy_bias = galaxy_bias
+
+        self.n_broadband = len(self.pow_broadband)
         
         if base_path is None:
             base_path = f"{os.environ['PSCRATCH']}/BAOfit_wtheta"
@@ -117,13 +119,12 @@ class WThetaModel:
         self.nbins = self.template_initializer.nbins
         self.z_edges = self.template_initializer.z_edges
 
-        letters = list("ABCDEFGH")  # Letters from A to H (depending on the number of broadband-term parameters)
         params = ["alpha"]
         for bin_z in range(self.nbins):
-            params.extend([f"{letter}_{bin_z}" for letter in letters])
+            params.extend(f"A_{bin_z}") # amplitude parameter
+            params.extend([f"a_{pb}_{bin_z}" for pb in self.pow_broadband]) # broadband parameters
         self.names_params =  np.array(params)
 
-        self.n_broadband_max = int((len(self.names_params) - 1) / self.nbins - 1)  # This should be 6 (from B to G, since A is the amplitude)
         self.n_params_max = len(self.names_params)
 
         # Prepare the index array
@@ -139,7 +140,7 @@ class WThetaModel:
         indices_params_bb = np.arange(1, 1 + (self.n_broadband + 1))  # Only nuisance parameters
         indices_params = np.concatenate([[0], indices_params_bb])  # Including alpha
         for bin_z in range(1, self.nbins):
-            indices_params = np.concatenate([indices_params, indices_params_bb + bin_z * (1 + self.n_broadband_max)])
+            indices_params = np.concatenate([indices_params, indices_params_bb + bin_z * (1 + self.n_broadband)])
         return indices_params
 
     def _load_and_interpolate_wtheta(self):
@@ -165,20 +166,31 @@ class WThetaModel:
 
         return wtheta_th_interp
 
+    # def wtheta_template_raw(self, theta, alpha, *params):
+    #     """Theoretical template calculation."""
+    #     wtheta_template = np.concatenate([
+    #         params[(1 + self.n_broadband) * bin_z] * self.wtheta_th_interp[bin_z](alpha * theta[bin_z]) +
+    #         params[(1 + self.n_broadband) * bin_z + i + 1] * theta[bin_z]**pb for i, pb in enumerate(self.pow_broadband)
+    #         for bin_z in range(self.nbins)
+    #     ])
+    #     return wtheta_template
+
     def wtheta_template_raw(self, theta, alpha, *params):
-        """Theoretical template calculation."""
-        wtheta_template = np.concatenate([
-            params[(1 + self.n_broadband_max) * bin_z] * self.wtheta_th_interp[bin_z](alpha * theta[bin_z]) +  # A
-            params[(1 + self.n_broadband_max) * bin_z + 1] +  # B
-            params[(1 + self.n_broadband_max) * bin_z + 2] / theta[bin_z] +  # C
-            params[(1 + self.n_broadband_max) * bin_z + 3] / theta[bin_z]**2 +  # D
-            params[(1 + self.n_broadband_max) * bin_z + 4] * theta[bin_z] +  # E
-            params[(1 + self.n_broadband_max) * bin_z + 5] * theta[bin_z]**2 +  # F
-            params[(1 + self.n_broadband_max) * bin_z + 6] * theta[bin_z]**3 + # G
-            params[(1 + self.n_broadband_max) * bin_z + 7] * theta[bin_z]**4  # H
-            for bin_z in range(self.nbins)
-        ])
-        return wtheta_template
+        """Theoretical w(θ) calculation."""
+        wtheta_template = []
+    
+        for bin_z in range(self.nbins):
+            base = params[(1 + self.n_broadband) * bin_z] * self.wtheta_th_interp[bin_z](alpha * theta[bin_z])
+    
+            broadband = sum(
+                params[(1 + self.n_broadband) * bin_z + i + 1] * theta[bin_z] ** pb
+                for i, pb in enumerate(self.pow_broadband)
+            )
+    
+            # total for this bin
+            wtheta_template.append(base + broadband)
+    
+        return np.concatenate(wtheta_template)
 
     def get_wtheta_template(self):
         """Return the wtheta_template function."""
@@ -191,7 +203,7 @@ class WThetaModel:
 
 class BAOFitInitializer:
     def __init__(self, include_wiggles, dataset, weight_type, mock_id, nz_flag, cov_type, cosmology_template,
-                 cosmology_covariance, delta_theta, theta_min, theta_max, n_broadband, bins_removed, 
+                 cosmology_covariance, delta_theta, theta_min, theta_max, pow_broadband, bins_removed, 
                  alpha_min=0.8, alpha_max=1.2, verbose=True, base_path=None):
         """
         Initializes the BAOFitInitializer class.
@@ -207,7 +219,7 @@ class BAOFitInitializer:
         - delta_theta (float): Delta theta value.
         - theta_min (dict): Minimum theta value for each redshift bin.
         - theta_max (dict): Maximum theta value for each redshift bin.
-        - n_broadband (int): Number of broadband parameters.
+        - pow_broadband (list): Powers of theta for the broadband parameters.
         - bins_removed (list): Redshift bins removed when running the BAO fit.
         - verbose (bool): Whether to print messages.
         - base_path (str): Path to save the results.
@@ -223,12 +235,14 @@ class BAOFitInitializer:
         self.delta_theta = delta_theta
         self.theta_min = theta_min
         self.theta_max = theta_max
-        self.n_broadband = n_broadband
-        self.bins_removed = bins_removed
+        self.pow_broadband = sorted(pow_broadband)
+        self.bins_removed = sorted(bins_removed)
         self.verbose = verbose
         self.alpha_min = alpha_min
         self.alpha_max = alpha_max
         self.Nalpha = 10**3
+
+        self.n_broadband = len(self.pow_broadband)
 
         if base_path is None:
             base_path = f"{os.environ['PSCRATCH']}/BAOfit_wtheta"
@@ -258,7 +272,7 @@ class BAOFitInitializer:
             "delta_theta": self.delta_theta,
             "theta_min": self.theta_min,
             "theta_max": self.theta_max,
-            "n_broadband": self.n_broadband,
+            "pow_broadband": self.pow_broadband,
             "bins_removed": self.bins_removed,
             "alpha_min": self.alpha_min,
             "alpha_max": self.alpha_max,

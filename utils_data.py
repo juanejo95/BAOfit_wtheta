@@ -213,7 +213,7 @@ class WThetaDataCovariance:
         self.delta_theta = delta_theta
         self.theta_min = theta_min
         self.theta_max = theta_max
-        self.bins_removed = bins_removed
+        self.bins_removed = sorted(bins_removed)
         self.diag_only = diag_only
         self.remove_crosscov = remove_crosscov
         
