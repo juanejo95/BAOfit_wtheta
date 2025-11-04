@@ -6,9 +6,9 @@
  
 The code implements a template-based method to model the $w(\theta)$ as
 
-$w_{\rm model}(\theta,\boldsymbol{\Theta}) = B w_{\rm ref}(\alpha \theta) + \sum_i A_i \theta^{-i},$
+$w_{\rm model}(\theta,\boldsymbol{\Theta}) = A w_{\rm ref}(\alpha \theta) + \sum_i a_i \theta^{-i},$
 
-where $B$ is the amplitude, $\alpha$ is the dilation parameter, and $A_i$ are the broad-band term parameters. $w_{\rm ref}(\theta)$ is the theoretical angular correlation function computed at a reference cosmology. The dilaton parameter can be expressed as
+where $A$ is the amplitude, $\alpha$ is the dilation parameter, and $a_i$ are the broad-band term parameters. $w_{\rm ref}(\theta)$ is the theoretical angular correlation function computed at a reference cosmology. The dilaton parameter can be expressed as
 
 $\alpha(z_{\rm eff})=\left[D_M(z_{\rm eff})/r_d\right]\cdot\left[D_M(z_{\rm eff})/r_d\right]_{\rm ref}^{-1}$,
 
@@ -28,13 +28,13 @@ where $z_{\rm eff}$ is the effective redshift of the galaxy sample, $D_M(z)$ is 
 
 - **Minimization Algorithm**
   
-  The $\chi^2$ depends on $\alpha$ but also on the amplitude and broad-band term parameters, $\chi^2=\chi^2(\alpha, B, A_i)$. The minimization algorithm has four steps:
-  1. The $A_i$ parameters are fit analytically, which leaves us with
+  The $\chi^2$ depends on $\alpha$ but also on the amplitude and broad-band term parameters, $\chi^2=\chi^2(\alpha, A, a_i)$. The minimization algorithm has four steps:
+  1. The $a_i$ parameters are fit analytically, which leaves us with
      
-     $\chi^2(\alpha, B, A_i) \to \chi^2(\alpha, B, A_{i, \rm bf}).$
-  2. We numerically search for the best-fit $B$ with the prior $B > 0$, which leaves us with
+     $\chi^2(\alpha, A, a_i) \to \chi^2(\alpha, A, a_{i, \rm bf}).$
+  2. We numerically search for the best-fit $A$ with the prior $A > 0$, which leaves us with
      
-     $\chi^2(\alpha, B, A_{i, \rm bf}) \to \chi^2(\alpha, B_{\rm bf}, A_{i, \rm bf}).$
+     $\chi^2(\alpha, A, a_{i, \rm bf}) \to \chi^2(\alpha, A_{\rm bf}, a_{i, \rm bf}).$
   3. The $\chi^2$ is then sampled as a function of $\alpha$, which allows us to find the best-fit $\alpha$.
   4. The $1-\sigma$ region of $\alpha$ is obtained with the $\Delta\chi^2 = 1$ rule.
 
