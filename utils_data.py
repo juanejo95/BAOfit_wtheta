@@ -377,15 +377,8 @@ class WThetaDataCovariance:
             else:
                 raise NotImplementedError("Such covariance does not exist.")
 
-        # cov_adjusted = np.zeros_like(cov)
-        # for bin_z1 in range(self.nbins):
-        #     for bin_z2 in range(self.nbins):
-        #         slice_1 = slice(bin_z1 * len(theta_cov[bin_z1]), (bin_z1 + 1) * len(theta_cov[bin_z1]))
-        #         slice_2 = slice(bin_z2 * len(theta_cov[bin_z2]), (bin_z2 + 1) * len(theta_cov[bin_z2]))
-        #         if bin_z1 == bin_z2 or (bin_z1 not in self.bins_removed and bin_z2 not in self.bins_removed):
-        #             cov_adjusted[slice_1, slice_2] = cov[slice_1, slice_2]
-        # cov = cov_adjusted
-
+        # Let's create a covariance matrix that's basically the original (all theta elements included) but removing the cross-covariances 
+        # of all bins in self.bins_removed with every other bin.
         cov_adjusted = np.zeros_like(cov)
         for bin_z1 in range(self.nbins):
             len_1 = len(theta_cov[bin_z1])
@@ -397,6 +390,7 @@ class WThetaDataCovariance:
                     cov_adjusted[slice_1, slice_2] = cov[slice_1, slice_2]
         cov = cov_adjusted
 
+        # Let's remove all cross-covariances (if specified)
         if self.remove_crosscov == "y":
             cov_adjusted = np.zeros_like(cov)
             for bin_z in range(self.nbins):
@@ -404,28 +398,23 @@ class WThetaDataCovariance:
                 cov_adjusted[slice_, slice_] = cov[slice_, slice_]
             cov = cov_adjusted
 
+        # Let's remove all cross-covariances and auto-correlations (if specified)
         if self.diag_only == "y":
             cov = np.diag(np.diag(cov))
 
         # Let's do the scale cuts
         theta_cov_cut = {}
         indices_theta_allbins_concatenated = []
-        for bin_z in range(self.nbins):
-
+        for bin_z1 in range(self.nbins):
             indices_theta_individualbin = np.where(
-                (theta_cov[bin_z] > self.theta_min[bin_z] * np.pi / 180) &
-                (theta_cov[bin_z] < self.theta_max[bin_z] * np.pi / 180)
+                (theta_cov[bin_z1] > self.theta_min[bin_z1] * np.pi / 180) &
+                (theta_cov[bin_z1] < self.theta_max[bin_z1] * np.pi / 180)
             )[0]
-
-            theta_cov_cut[bin_z] = theta_cov[bin_z][indices_theta_individualbin]
-            
-            for bin_z2 in range(bin_z):
+            theta_cov_cut[bin_z1] = theta_cov[bin_z1][indices_theta_individualbin]
+            for bin_z2 in range(bin_z1):
                 indices_theta_individualbin += len(theta_cov[bin_z2])
-
             indices_theta_allbins_concatenated.append(indices_theta_individualbin)
-
         indices_theta_allbins_concatenated = np.concatenate(indices_theta_allbins_concatenated)
-        
         cov_cut = cov[indices_theta_allbins_concatenated[:, None], indices_theta_allbins_concatenated]
 
         len_datavector = sum(len(theta_cov_cut[bin_z]) for bin_z in range(self.nbins) if bin_z not in self.bins_removed)
