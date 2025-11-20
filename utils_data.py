@@ -428,7 +428,8 @@ class WThetaDataCovariance:
             cov_cut /= hartlap
             print(f"Applying the Hartlap correction to the covariance matrix from the mocks (cov -> cov/{hartlap})")
             
-            if "DESIY1_LRG_Abacus" in self.dataset: # only used for the Abacus
+            # if "DESIY1_LRG_Abacus" in self.dataset: # only used for the Abacus
+            if "DESIY1_LRG" in self.dataset:
                 if hasattr(self, 'n_mocks'): # if it exists then it means we have averaged the w(theta) over n_mocks and then we need to re-scale the covariance matrix
                     cov_cut /= self.n_mocks
                     print(f"Re-scaling the covariance matrix to fit the mean of the mocks (cov -> cov/{self.n_mocks})")
