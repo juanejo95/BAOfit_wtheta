@@ -122,7 +122,12 @@ class WThetaModel:
         params = ["alpha"]
         for bin_z in range(self.nbins):
             params.extend([f"A_{bin_z}"]) # amplitude parameter
-            params.extend([f"a_{pb}_{bin_z}" for pb in self.pow_broadband]) # broadband parameters
+            # params.extend([f"a_{pb}_{bin_z}" for pb in self.pow_broadband]) # broadband parameters
+            params.extend([
+                f"a_{pb}_{bin_z}" if pb == 0 else
+                f"a_{'m' if pb < 0 else 'p'}{abs(pb)}_{bin_z}"
+                for pb in self.pow_broadband
+            ])
         self.names_params =  np.array(params)
 
         self.n_params_max = len(self.names_params)
