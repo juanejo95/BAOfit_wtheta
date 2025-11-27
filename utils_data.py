@@ -222,6 +222,7 @@ class WThetaDataCovariance:
         self.nbins = self.redshift_distributions.nbins
 
     def load_wtheta_data(self):
+
         indices_theta_allbins = {}
         theta_wtheta_data = {}
         wtheta_data = {}
@@ -272,9 +273,9 @@ class WThetaDataCovariance:
                             theta, wtheta = np.loadtxt(filename_wtheta).T
                             
             elif "DESIY1_LRG" in self.dataset:
+                theta = (0.5 + (10-0.5)/(2*24) + np.arange(24)*(10-0.5)/24) * np.pi/180 # mean of the theta bins used by Anya
                 if self.mock_id == "mean":
                     with zipfile.ZipFile(zip_file, "r") as zf:
-                        # pattern = re.compile(r"deltaz0p02_deltath0p4_thetacuts/twoangcorr_mock_\d+\.npz")
                         pattern = re.compile(r"twoangcorr_mock_\d+\.npz")
                         mock_files = [name for name in zf.namelist() if pattern.match(name)]
             
@@ -283,7 +284,6 @@ class WThetaDataCovariance:
                             print(f"Averaging the w(theta) over {self.n_mocks} mocks!")
             
                         all_wtheta = []
-                        theta = None
             
                         for mock_file in mock_files:
                             with zf.open(mock_file) as file:
@@ -291,15 +291,11 @@ class WThetaDataCovariance:
             
                                 wtheta_mock = npz_data.get(f"z{bin_z}")
             
-                                if theta is None:
-                                    theta = npz_data.get("theta") * np.pi / 180
-            
                                 all_wtheta.append(wtheta_mock)
                                 
                         wtheta = np.mean(all_wtheta, axis=0)
             
                 else:
-                    # file_in_zip = f"deltaz0p02_deltath0p4_thetacuts/twoangcorr_mock_{self.mock_id}.npz"
                     file_in_zip = f"twoangcorr_mock_{self.mock_id}.npz"
             
                     with zipfile.ZipFile(zip_file, "r") as zf:
@@ -307,7 +303,6 @@ class WThetaDataCovariance:
                             npz_data = np.load(filename_wtheta)
             
                             wtheta = npz_data.get(f"z{bin_z}")
-                            theta = npz_data.get("theta") * np.pi / 180
 
             indices_theta_individualbin = np.where(
                 (theta > self.theta_min[bin_z] * np.pi / 180) &
@@ -370,9 +365,10 @@ class WThetaDataCovariance:
                 raise NotImplementedError("Such covariance does not exist.")
 
         if "DESIY1_LRG" in self.dataset:
+            theta = (0.5 + (10-0.5)/(2*24) + np.arange(24)*(10-0.5)/24) * np.pi/180 # mean of the theta bins used by Anya
             if self.cov_type == "mocks":
                 for bin_z in range(self.nbins):
-                    theta_cov[bin_z] = np.loadtxt(f"{path_cov}/theta.txt") * np.pi / 180
+                    theta_cov[bin_z] = theta
                 cov = np.loadtxt(f"{path_cov}/EZcovariance_matrix.txt")
             else:
                 raise NotImplementedError("Such covariance does not exist.")
@@ -428,7 +424,6 @@ class WThetaDataCovariance:
             cov_cut /= hartlap
             print(f"Applying the Hartlap correction to the covariance matrix from the mocks (cov -> cov/{hartlap})")
             
-            # if "DESIY1_LRG_Abacus" in self.dataset: # only used for the Abacus
             if "DESIY1_LRG" in self.dataset:
                 if hasattr(self, 'n_mocks'): # if it exists then it means we have averaged the w(theta) over n_mocks and then we need to re-scale the covariance matrix
                     cov_cut /= self.n_mocks
@@ -445,7 +440,7 @@ class WThetaDataCovariance:
             sys.exit("Aborting: theta_data and theta_cov keys differ!")
     
         for key in theta_data:
-            if not np.allclose(theta_data[key], theta_cov[key], rtol=1e-4, atol=1e-4):
+            if not np.allclose(theta_data[key], theta_cov[key], rtol=1e-10, atol=1e-10):
                 warnings.warn(f"Theta mismatch in bin {key} (not close enough).")
                 print(theta_data[key])
                 print(theta_cov[key])
