@@ -1,5 +1,5 @@
-import numpy as np
 import os
+import numpy as np
 import scipy
 import multiprocessing
 from functools import partial
@@ -10,9 +10,9 @@ from utils_data import RedshiftDistributions
 
 class TemplateInitializer:
     def __init__(self, include_wiggles, dataset, nz_flag, cosmology_template, Nk=2*10**5, Nmu=5*10**4, Nr=5*10**4, Nz=10**3, Ntheta=10**3, 
-                 use_multiprocessing=False, n_cpu=None, verbose=True, base_path=None):
+                 use_multiprocessing=False, n_cpu=None, verbose=True, code_path=None, save_path=None):
         """
-        Initializes the template calculator based on input parameters.
+        Initializes the template calculator using the specified input parameters.
 
         Parameters:
         - include_wiggles (str): Whether to include BAO wiggles.
@@ -27,7 +27,8 @@ class TemplateInitializer:
         - use_multiprocessing (bool): Whether to run the BAO fits using multiprocessing or not.
         - n_cpu (int): Number of CPUs for parallel processing (default: 20).
         - verbose (bool): Whether to print messages.
-        - base_path (str): Path to save the results.
+        - code_path (str): Path to the folder 'datasets'.
+        - save_path (str): Path to save the results.
         """
         self.include_wiggles = include_wiggles
         self.dataset = dataset
@@ -41,10 +42,14 @@ class TemplateInitializer:
         self.use_multiprocessing = use_multiprocessing
         self.n_cpu = n_cpu if n_cpu is not None else 20
         self.verbose = verbose
+
+        if code_path is None:
+            code_path = f"{os.environ['PSCRATCH']}/BAOfit_wtheta"
+        self.code_path = code_path
         
-        if base_path is None:
-            base_path = f"{os.environ['PSCRATCH']}/BAOfit_wtheta"
-        self.base_path = base_path
+        if save_path is None:
+            save_path = f"{os.environ['PSCRATCH']}/BAOfit_wtheta"
+        self.save_path = save_path
         
         self.mu_vector = np.linspace(-1, 1, self.Nmu)
         self.r_12_vector = 10**np.linspace(np.log10(10**-2), np.log10(10**5), self.Nr)
@@ -58,7 +63,7 @@ class TemplateInitializer:
         self.components = ["bb", "bf", "ff"]
         
         # Path to save the templates
-        self.path_template = f"{self.base_path}/templates/{self.dataset}/wtheta_template{self.include_wiggles}/nz_{self.nz_flag}/wtheta_{self.cosmology_template}"
+        self.path_template = f"{self.save_path}/templates/{self.dataset}/wtheta_template{self.include_wiggles}/nz_{self.nz_flag}/wtheta_{self.cosmology_template}"
         
         # Make sure the directory exists
         os.makedirs(self.path_template, exist_ok=True)
@@ -67,7 +72,7 @@ class TemplateInitializer:
             print(f"Saving output to: {self.path_template}")
             
         # Redshift distribution
-        self.redshift_distributions = RedshiftDistributions(self.dataset, self.nz_flag, verbose=False)
+        self.redshift_distributions = RedshiftDistributions(self.dataset, self.nz_flag, verbose=False, code_path=self.code_path)
         self.nbins = self.redshift_distributions.nbins
         self.z_edges = self.redshift_distributions.z_edges
         

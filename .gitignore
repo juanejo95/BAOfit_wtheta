@@ -31,6 +31,9 @@ copy_templates_DESY6.sh
 copy_templates_DESY6_COLA.sh
 copy_templates_DESIY1.sh
 
-plots/
+**/plots/
 
-pk_old/
+**/pk_old/
+
+**/nb_BAOfit_DESIstuff.ipynb
+**/Untitled.ipynb

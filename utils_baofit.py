@@ -13,7 +13,7 @@ plt.rcParams["font.serif"] = "Times New Roman"
 from utils_template import TemplateInitializer
 
 class WThetaModelGalaxyBias:
-    def __init__(self, include_wiggles, dataset, nz_flag, cosmology_template, base_path=None):
+    def __init__(self, include_wiggles, dataset, nz_flag, cosmology_template, save_path=None):
         """
         Initialize the WThetaModelGalaxyBias class.
 
@@ -22,16 +22,16 @@ class WThetaModelGalaxyBias:
         - dataset (str): Dataset identifier (e.g., "DESY6").
         - nz_flag (str): Identifier for the n(z).
         - cosmology_template (str): Cosmology for the template.
-        - base_path (str): Path to save the results. Needed to load the template.
+        - save_path (str): Path to save the results. Needed to load the template.
         """
         self.include_wiggles = include_wiggles
         self.dataset = dataset
         self.nz_flag = nz_flag
         self.cosmology_template = cosmology_template
 
-        if base_path is None:
-            base_path = f"{os.environ['PSCRATCH']}/BAOfit_wtheta"
-        self.base_path = base_path
+        if save_path is None:
+            save_path = f"{os.environ['PSCRATCH']}/BAOfit_wtheta"
+        self.save_path = save_path
 
         # Initialize template data
         self.template_initializer = TemplateInitializer(
@@ -40,7 +40,7 @@ class WThetaModelGalaxyBias:
             nz_flag=self.nz_flag,
             cosmology_template=self.cosmology_template,
             verbose=False,
-            base_path=self.base_path,
+            save_path=self.save_path,
         )
         self.nbins = self.template_initializer.nbins
         self.z_edges = self.template_initializer.z_edges
@@ -82,7 +82,7 @@ class WThetaModelGalaxyBias:
         return wtheta
 
 class WThetaModel:
-    def __init__(self, include_wiggles, dataset, nz_flag, cosmology_template, pow_broadband, galaxy_bias, base_path=None):
+    def __init__(self, include_wiggles, dataset, nz_flag, cosmology_template, pow_broadband, galaxy_bias, save_path=None):
         """
         Initialize the WThetaModel class.
 
@@ -93,7 +93,7 @@ class WThetaModel:
         - cosmology_template (str): Cosmology for the template.
         - pow_broadband (list): Powers of theta for the broadband parameters.
         - galaxy_bias (dict): Dictionary containing the linear galaxy bias for each redshift bin.
-        - base_path (str): Path to save the results. Needed to load the template.
+        - save_path (str): Path to save the results. Needed to load the template.
         """
         self.include_wiggles = include_wiggles
         self.dataset = dataset
@@ -104,9 +104,9 @@ class WThetaModel:
 
         self.n_broadband = len(self.pow_broadband)
         
-        if base_path is None:
-            base_path = f"{os.environ['PSCRATCH']}/BAOfit_wtheta"
-        self.base_path = base_path
+        if save_path is None:
+            save_path = f"{os.environ['PSCRATCH']}/BAOfit_wtheta"
+        self.save_path = save_path
         
         self.template_initializer = TemplateInitializer(
             include_wiggles=self.include_wiggles,
@@ -114,7 +114,7 @@ class WThetaModel:
             nz_flag=self.nz_flag,
             cosmology_template=self.cosmology_template,
             verbose=False,
-            base_path=self.base_path,
+            save_path=self.save_path,
         )
         self.nbins = self.template_initializer.nbins
         self.z_edges = self.template_initializer.z_edges
@@ -194,7 +194,7 @@ class WThetaModel:
 class BAOFitInitializer:
     def __init__(self, include_wiggles, dataset, weight_type, mock_id, nz_flag, cov_type, cosmology_template,
                  cosmology_covariance, delta_theta, theta_min, theta_max, pow_broadband, bins_removed, 
-                 alpha_min=0.8, alpha_max=1.2, verbose=True, base_path=None):
+                 alpha_min=0.8, alpha_max=1.2, verbose=True, save_path=None):
         """
         Initializes the BAOFitInitializer class.
         Parameters:
@@ -212,7 +212,7 @@ class BAOFitInitializer:
         - pow_broadband (list): Powers of theta for the broadband parameters.
         - bins_removed (list): Redshift bins removed when running the BAO fit.
         - verbose (bool): Whether to print messages.
-        - base_path (str): Path to save the results.
+        - save_path (str): Path to save the results.
         """
         self.include_wiggles = include_wiggles
         self.dataset = dataset
@@ -234,9 +234,9 @@ class BAOFitInitializer:
 
         self.n_broadband = len(self.pow_broadband)
 
-        if base_path is None:
-            base_path = f"{os.environ['PSCRATCH']}/BAOfit_wtheta"
-        self.base_path = base_path
+        if save_path is None:
+            save_path = f"{os.environ['PSCRATCH']}/BAOfit_wtheta"
+        self.save_path = save_path
 
         # Compute hash and config
         self.config_dict = self._build_config_dict()
@@ -302,9 +302,9 @@ class BAOFitInitializer:
     def _generate_path_baofit(self):
         """Generate the save path for the BAO fit results."""
         if self.dataset in ["DESY6", "DESY6_dec_below-23.5", "DESY6_dec_above-23.5", "DESY6_DR1tiles_noDESI", "DESY6_DR1tiles_DESIonly"]:
-            path = f"{self.base_path}/results/{self.dataset}/fit_results{self.include_wiggles}/weight_{self.weight_type}/{self.hash_path}"
+            path = f"{self.save_path}/results/{self.dataset}/fit_results{self.include_wiggles}/weight_{self.weight_type}/{self.hash_path}"
         elif any(substr in self.dataset for substr in ["COLA", "EZ", "Abacus"]):
-            path = f"{self.base_path}/results/{self.dataset}/fit_results{self.include_wiggles}/mock_{self.mock_id}/{self.hash_path}"
+            path = f"{self.save_path}/results/{self.dataset}/fit_results{self.include_wiggles}/mock_{self.mock_id}/{self.hash_path}"
         else:
             raise ValueError(f"Unsupported dataset: {self.dataset}")
         return path

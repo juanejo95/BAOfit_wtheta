@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import sys
 import zipfile
@@ -5,7 +6,7 @@ import re
 import warnings
 
 class RedshiftDistributions:
-    def __init__(self, dataset, nz_flag, verbose=True):
+    def __init__(self, dataset, nz_flag, verbose=True, code_path=None):
         """
         Initialize the RedshiftDistributions class.
 
@@ -13,47 +14,52 @@ class RedshiftDistributions:
         - dataset (str): Dataset identifier (e.g., "DESY6").
         - nz_flag (str): Identifier for the n(z).
         - verbose (bool): Whether to print messages.
+        - code_path (str): Path to the folder 'datasets'.
         """
         self.dataset = dataset
         self.nz_flag = nz_flag
         self.verbose = verbose
+
+        if code_path is None:
+            code_path = f"{os.environ['PSCRATCH']}/BAOfit_wtheta"
+        self.code_path = code_path
         
         # File paths based on dataset and nz_flag
         if self.dataset in ["DESY6", "DESY6_dec_below-23.5", "DESY6_dec_above-23.5", "DESY6_DR1tiles_noDESI", "DESY6_DR1tiles_DESIonly"]: # they have the same n(z), but in different paths
             self.nz_type = "widebin"
             if self.nz_flag == "fid":
-                file_path = f"datasets/{self.dataset}/nz/nz_DNFpdf_shift_stretch_wrtclusteringz1-4_wrtVIPERS5-6_v2.txt"
+                file_path = f"{self.code_path}/datasets/{self.dataset}/nz/nz_DNFpdf_shift_stretch_wrtclusteringz1-4_wrtVIPERS5-6_v2.txt"
                 self.z_edges = {
                     0: [0.6, 0.7], 1: [0.7, 0.8], 2: [0.8, 0.9], 3: [0.9, 1.0], 4: [1.0, 1.1], 5: [1.1, 1.2]
                 }
             elif nz_flag == "clusteringz":
-                file_path = f"datasets/{self.dataset}/nz/nz_clusteringz.txt"
+                file_path = f"{self.code_path}/datasets/{self.dataset}/nz/nz_clusteringz.txt"
                 self.z_edges = {
                     0: [0.6, 0.7], 1: [0.7, 0.8], 2: [0.8, 0.9], 3: [0.9, 1.0]
                 }
             else:
-                raise ValueError(f"Unknown nz_flag: {self.nz_flag} for dataset: datasets/{self.dataset}")
+                raise ValueError(f"Unknown nz_flag: {self.nz_flag} for dataset: {self.dataset}")
         elif self.dataset in ["DESY6_COLA", "DESY6_COLA_dec_below-23.5", "DESY6_COLA_dec_above-23.5", "DESY6_COLA_DR1tiles_noDESI", "DESY6_COLA_DR1tiles_DESIonly"]:
             self.nz_type = "widebin"
             if self.nz_flag == "mocks":
-                file_path = f"datasets/{self.dataset}/nz/nz_Y6COLA.txt"
+                file_path = f"{self.code_path}/datasets/{self.dataset}/nz/nz_Y6COLA.txt"
                 self.z_edges = {
                     0: [0.6, 0.7], 1: [0.7, 0.8], 2: [0.8, 0.9], 3: [0.9, 1.0], 4: [1.0, 1.1], 5: [1.1, 1.2]
                 }
             else:
-                raise ValueError(f"Unknown nz_flag: {self.nz_flag} for dataset: datasets/{self.dataset}")
+                raise ValueError(f"Unknown nz_flag: {self.nz_flag} for dataset: {self.dataset}")
         elif "DESIY1_LRG" in self.dataset:
             self.nz_type = "thinbin"
             if self.nz_flag == "mocks":
-                file_path = f"datasets/{self.dataset}/nz/mean_nzs.txt"
+                file_path = f"{self.code_path}/datasets/{self.dataset}/nz/mean_nzs.txt"
         else:
-            raise ValueError(f"Unknown dataset: datasets/{self.dataset}")
+            raise ValueError(f"Unknown dataset: {self.dataset}")
 
         # Load the redshift distributions
         try:
             self.nz_data = np.loadtxt(file_path)
         except OSError as e:
-            raise FileNotFoundError(f"Error loading n(z) file for datasets/{self.dataset} with nz_flag {self.nz_flag}: {e}")
+            raise FileNotFoundError(f"Error loading n(z) file for {self.dataset} with nz_flag {self.nz_flag}: {e}")
 
         if self.nz_type == "widebin":
             self.nbins = len(self.nz_data.T) - 1
@@ -65,11 +71,7 @@ class RedshiftDistributions:
             z_bins = np.concatenate([[2 * z_centers[0] - z_bins[0]], z_bins, [2 * z_centers[-1] - z_bins[-1]]])
             self.z_edges = {bin_z: [z_bins[bin_z], z_bins[bin_z + 1]] for bin_z in range(self.nbins)}
         if self.verbose:
-            print(f"Using datasets/{self.dataset} {self.nz_flag} n(z), which has {self.nbins} redshift bins")
-
-    def __repr__(self):
-        """String representation for debugging."""
-        return f"RedshiftDistributions(dataset=datasets/{self.dataset}, nz_flag={self.nz_flag}, nbins={self.nbins}, edges={self.z_edges})"
+            print(f"Using {self.dataset} {self.nz_flag} n(z), which has {self.nbins} redshift bins")
 
     def nz_interp(self, z, bin_z):
         """Interpolate n(z) for a given redshift z and bin."""
@@ -87,7 +89,7 @@ class RedshiftDistributions:
         if self.nz_type == "widebin":
             return np.trapz(self.nz_data[:, 0] * self.nz_data[:, bin_z + 1], self.nz_data[:, 0])
         elif self.nz_type == "thinbin":
-            raise NotImplementedError(f"No need to implement for dataset datasets/{self.dataset}.")
+            raise NotImplementedError(f"No need to implement for dataset {self.dataset}.")
 
     def z_values(self, bin_z, Nz=10**3, target_area=0.99, verbose=True):
         """
@@ -125,10 +127,10 @@ class RedshiftDistributions:
         
             return z_values
         elif self.nz_type == "thinbin":
-            raise NotImplementedError(f"No need to implement for dataset datasets/{self.dataset}.")
+            raise NotImplementedError(f"No need to implement for dataset {self.dataset}.")
 
 class GetThetaLimits:
-    def __init__(self, dataset, nz_flag, dynamical_theta_limits=False):
+    def __init__(self, dataset, nz_flag, dynamical_theta_limits=False, code_path=None):
         """
         Initialize the GetThetaLimits class.
 
@@ -136,14 +138,19 @@ class GetThetaLimits:
         - dataset (str): Dataset identifier (e.g., "DESY6").
         - nz_flag (str): Identifier for the n(z).
         - dynamical_theta_limits (bool): Whether to give dynamical theta ranges or not.
+        - code_path (str): Path to the folder 'datasets'.
         """
         self.dataset = dataset
         self.nz_flag = nz_flag
         self.dynamical_theta_limits = dynamical_theta_limits
         self.theta_width = 4
 
+        if code_path is None:
+            code_path = f"{os.environ['PSCRATCH']}/BAOfit_wtheta"
+        self.code_path = code_path
+
         # Redshift distribution
-        self.redshift_distributions = RedshiftDistributions(self.dataset, self.nz_flag, verbose=False)
+        self.redshift_distributions = RedshiftDistributions(self.dataset, self.nz_flag, verbose=False, code_path=self.code_path)
         self.nbins = self.redshift_distributions.nbins
 
     def _angular_bao_scale_deg(self, z, cosmo):
@@ -186,23 +193,24 @@ class GetThetaLimits:
 
 class WThetaDataCovariance:
     def __init__(self, dataset, weight_type, mock_id, nz_flag, cov_type, cosmology_covariance, delta_theta, 
-                 theta_min, theta_max, bins_removed, diag_only, remove_crosscov):
+                 theta_min, theta_max, bins_removed, diag_only, remove_crosscov, code_path=None):
         """
         Initialize the WThetaDataCovariance class.
 
         Parameters:
         - dataset (str): Dataset identifier (e.g., "DESY6").
         - weight_type (int): Weight type (for dataset "DESY6" it should be either 1 or 0).
-        - mock_id (int): Mock id (for dataset "DESY6_COLA" it should go from 0 to 1951).
+        - mock_id (int): Mock id (for dataset "DESY6_COLA", it should go from 0 to 1951).
         - nz_flag (str): Identifier for the n(z).
         - cov_type (str): Type of covariance.
         - cosmology_covariance (str): Cosmology for the covariance.
         - delta_theta (float): Delta theta value.
         - theta_min (dict): Minimum theta value for each redshift bin.
-        - theta_max (dict): Maximum theta value for each redshift bins.
+        - theta_max (dict): Maximum theta value for each redshift bin.
         - bins_removed (list): Redshift bins removed when running the BAO fit.
         - diag_only (str): Whether to keep only the diagonal of the covariance.
         - remove_crosscov (str): Whether to remove the cross-covariances between redshift bins.
+        - code_path (str): Path to the folder 'datasets'.
         """
         self.dataset = dataset
         self.weight_type = weight_type
@@ -217,8 +225,12 @@ class WThetaDataCovariance:
         self.diag_only = diag_only
         self.remove_crosscov = remove_crosscov
         
+        if code_path is None:
+            code_path = f"{os.environ['PSCRATCH']}/BAOfit_wtheta"
+        self.code_path = code_path
+        
         # Redshift distribution
-        self.redshift_distributions = RedshiftDistributions(self.dataset, self.nz_flag, verbose=False)
+        self.redshift_distributions = RedshiftDistributions(self.dataset, self.nz_flag, verbose=False, code_path=self.code_path)
         self.nbins = self.redshift_distributions.nbins
 
     def load_wtheta_data(self):
@@ -227,7 +239,7 @@ class WThetaDataCovariance:
         theta_wtheta_data = {}
         wtheta_data = {}
         
-        zip_file = f"datasets/{self.dataset}/wtheta/wtheta.zip"
+        zip_file = f"{self.code_path}/datasets/{self.dataset}/wtheta/wtheta.zip"
         for bin_z in range(self.nbins):
             if self.dataset == "DESY6":
                 file_in_zip = (f"wtheta_data_bin{bin_z}_DeltaTheta{self.delta_theta}_weights{self.weight_type}_fstar.txt")
@@ -327,7 +339,7 @@ class WThetaDataCovariance:
     def load_covariance_matrix(self):
         theta_cov = {}
 
-        path_cov = f"datasets/{self.dataset}/cov_{self.cov_type}"
+        path_cov = f"{self.code_path}/datasets/{self.dataset}/cov_{self.cov_type}"
 
         if self.dataset in ["DESY6", "DESY6_dec_below-23.5", "DESY6_dec_above-23.5", "DESY6_DR1tiles_noDESI", "DESY6_DR1tiles_DESIonly"]:
             if self.cov_type == "cosmolike":
@@ -424,7 +436,8 @@ class WThetaDataCovariance:
             cov_cut /= hartlap
             print(f"Applying the Hartlap correction to the covariance matrix from the mocks (cov -> cov/{hartlap})")
             
-            if "DESIY1_LRG" in self.dataset:
+            # if "DESIY1_LRG" in self.dataset:
+            if "DESIY1_LRG_Abacus" in self.dataset: # only used for the Abacus
                 if hasattr(self, 'n_mocks'): # if it exists then it means we have averaged the w(theta) over n_mocks and then we need to re-scale the covariance matrix
                     cov_cut /= self.n_mocks
                     print(f"Re-scaling the covariance matrix to fit the mean of the mocks (cov -> cov/{self.n_mocks})")
