@@ -522,7 +522,7 @@ class WThetaCalculator:
 class CellCalculator:
     def __init__(self, template_initializer):
         """
-        Initialize the C_ellCalculator class.
+        Initialize the CellCalculator class.
 
         Parameters:
         - template_initializer: Instance of the TemplateInitializer class.

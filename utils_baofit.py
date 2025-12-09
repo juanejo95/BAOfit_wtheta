@@ -168,7 +168,7 @@ class WThetaModel:
     #     return wtheta_template
 
     def wtheta_template_raw(self, theta, alpha, *params):
-        """Theoretical w(θ) calculation."""
+        """Theoretical w(theta) calculation."""
         wtheta_template = []
     
         for bin_z in range(self.nbins):

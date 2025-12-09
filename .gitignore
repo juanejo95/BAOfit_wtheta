@@ -25,6 +25,11 @@ datasets/DESIY1_LRG_Abacus_altmtl_deltaz0.02
 datasets/DESIY1_LRG_EZ_complete_deltaz0.02
 datasets/DESIY1_LRG_Abacus_complete_deltaz0.02
 
+datasets/DESIY1_LRG_EZ_ffa_recon_deltaz0.02
+datasets/DESIY1_LRG_Abacus_altmtl_recon_deltaz0.02
+datasets/DESIY1_LRG_EZ_complete_recon_deltaz0.02
+datasets/DESIY1_LRG_Abacus_complete_recon_deltaz0.02
+
 **/scripts
 
 copy_templates_DESY6.sh
