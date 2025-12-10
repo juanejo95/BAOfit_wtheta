@@ -1,7 +1,6 @@
 import os
 import numpy as np
 import scipy
-import multiprocessing
 from functools import partial
 from cosmoprimo import PowerSpectrumBAOFilter
 from pathos.multiprocessing import ProcessingPool as Pool
@@ -12,11 +11,11 @@ class TemplateInitializer:
     def __init__(self, include_wiggles, dataset, nz_flag, cosmology_template, Nk=2*10**5, Nmu=5*10**4, Nr=5*10**4, Nz=10**3, Ntheta=10**3, 
                  use_multiprocessing=False, n_cpu=None, verbose=True, code_path=None, save_path=None):
         """
-        Initializes the template calculator using the specified input parameters.
+        Initialize the TemplateInitializer class.
 
         Parameters:
         - include_wiggles (str): Whether to include BAO wiggles.
-        - dataset (str): Dataset identifier (e.g., "DESY6").
+        - dataset (str): Dataset identifier.
         - nz_flag (str): Identifier for the n(z).
         - cosmology_template (str): Cosmology for the template.
         - Nk (int): Number of k bins for the P(k, mu).
@@ -24,11 +23,11 @@ class TemplateInitializer:
         - Nr (int): Number of r bins when computing xi(r)
         - Nz (int): Number of z bins when projecting in redshift.
         - Ntheta (int): Number of theta values when computing the w(theta).
-        - use_multiprocessing (bool): Whether to run the BAO fits using multiprocessing or not.
+        - use_multiprocessing (bool): Whether to run the BAO fits using multiprocessing.
         - n_cpu (int): Number of CPUs for parallel processing (default: 20).
         - verbose (bool): Whether to print messages.
-        - code_path (str): Path to the folder 'datasets'.
-        - save_path (str): Path to save the results.
+        - code_path (str): Path to the code.
+        - save_path (str): Path where outputs are saved.
         """
         self.include_wiggles = include_wiggles
         self.dataset = dataset
@@ -102,20 +101,21 @@ class TemplateInitializer:
             self.k = self.kh * self.cosmo.h
 
     def get_path_template(self):
-        """Return the generated path_template."""
+        """
+        Return the generated path_template.
+        """
         return self.path_template
     
     def _initialize_cosmology(self):
-        """Initialize cosmology based on the template."""
+        """
+        Initialize the cosmology of the template.
+        """
         cosmology_params = CosmologicalParameters(self.cosmology_template, verbose=self.verbose)
         self.cosmo = cosmology_params.get_cosmology()
             
     def load_pk_ell(self, bin_z):
         """
         Load precomputed Pk_ell for a given redshift bin.
-
-        Parameters:
-        - bin_z (int): Redshift bin number.
         """
         if self.verbose:
             print(f"{bin_z} - Attempting to load precomputed Pk_ell...")
@@ -137,9 +137,6 @@ class TemplateInitializer:
     def load_xi_ell(self, bin_z):
         """
         Load precomputed xi_ell for a given redshift bin.
-
-        Parameters:
-        - bin_z (int): Redshift bin number.
         """
         if self.verbose:
             print(f"{bin_z} - Attempting to load precomputed xi_ell...")
@@ -161,9 +158,6 @@ class TemplateInitializer:
     def load_wtheta(self, bin_z):
         """
         Load precomputed w(theta) for a given redshift bin.
-
-        Parameters:
-        - bin_z (int): Redshift bin number.
         """
         if self.verbose:
             print(f"{bin_z} - Attempting to load precomputed w(theta)...")
@@ -184,9 +178,6 @@ class TemplateInitializer:
     def load_C_ell(self, bin_z):
         """
         Load precomputed C_ell for a given redshift bin.
-
-        Parameters:
-        - bin_z (int): Redshift bin number.
         """
         if self.verbose:
             print(f"{bin_z} - Attempting to load precomputed C_ell...")
@@ -234,8 +225,9 @@ class PowerSpectrumMultipoles:
         self._initialize_power_spectrum()
 
     def _initialize_power_spectrum(self):
-        """Initialize k and P(k) values."""
-
+        """
+        Initialize k and P(k) values.
+        """
         if "old" in self.cosmology_template:
             # Power spectrum with wiggles
             self.Pk_wigg = np.interp(self.k, self.template_initializer.k_old, self.template_initializer.pk_wigg_old)
@@ -258,7 +250,9 @@ class PowerSpectrumMultipoles:
         self.Sigma_0, self.delta_Sigma_0 = self.compute_sigma_parameters()
 
     def compute_sigma_parameters(self):
-        """Compute Sigma_0 and delta_Sigma_0."""
+        """
+        Compute Sigma_0 and delta_Sigma_0.
+        """
         k_s = 0.2 * self.cosmo.h
         ell_BAO = 110 / self.cosmo.h
 
@@ -275,7 +269,9 @@ class PowerSpectrumMultipoles:
         return Sigma_0, delta_Sigma_0
 
     def compute_sigma_tot_vector(self, z, f):
-        """Compute the total sigma vector."""
+        """
+        Compute Sigma_tot.
+        """
         D = self.cosmo.growth_factor(z)
         Sigma = D * self.Sigma_0
         delta_Sigma = D * self.delta_Sigma_0
@@ -289,7 +285,9 @@ class PowerSpectrumMultipoles:
         )
 
     def compute_pk_ell_singlek(self, bin_z, f, Sigma_tot_vector, i):
-        """Compute the power spectrum multipoles for a single value of k."""
+        """
+        Compute the power spectrum multipoles for a single value of k.
+        """
         if self.include_wiggles == "":
             pk_term = (self.Pk_wigg[i] - self.Pk_nowigg[i]) * np.exp(-self.k[i]**2 * Sigma_tot_vector**2) + self.Pk_nowigg[i]
         elif self.include_wiggles == "_nowiggles":
@@ -304,7 +302,9 @@ class PowerSpectrumMultipoles:
         return pk_dict
 
     def compute_pk_ell(self, bin_z):
-        """Compute the power spectrum multipoles for a given redshift bin."""
+        """
+        Compute the power spectrum multipoles for a given redshift bin.
+        """
         if self.redshift_distributions.nz_type == "widebin":
             z_avg = self.redshift_distributions.z_average(bin_z)
         elif self.redshift_distributions.nz_type == "thinbin":
@@ -360,10 +360,6 @@ class CorrelationFunctionMultipoles:
     def compute_xi_ell_singler(self, pk_ell_dict, r):
         """
         Compute the correlation function multipoles for a single value of r.
-
-        Parameters:
-        - pk_ell_dict (dict): Power spectrum multipoles.
-        - r (float): Radial distance.
         """
         x = self.k * r
         x_square_inv = 1 / x**2
@@ -385,9 +381,6 @@ class CorrelationFunctionMultipoles:
     def compute_xi_ell(self, bin_z):
         """
         Compute the correlation function multipoles for a given redshift bin.
-
-        Parameters:
-        - bin_z (int): Redshift bin number.
         """
         pk_ell_dict = self.template_initializer.load_pk_ell(bin_z)
         
@@ -441,11 +434,6 @@ class WThetaCalculator:
     def wtheta_calculator(self, bin_z, xi_ell_dict, theta):
         """
         Compute the wtheta for a given redshift bin and a single value of theta.
-
-        Parameters:
-        - bin_z (int): Redshift bin number.
-        - xi_ell_dict (dict): Correlation function multipoles.
-        - theta (float): A single value of theta (angular separation) to calculate wtheta for.
         """
         if self.redshift_distributions.nz_type == "widebin":
             z_values = self.redshift_distributions.z_values(bin_z, Nz=self.Nz, verbose=False)
@@ -488,9 +476,6 @@ class WThetaCalculator:
     def compute_wtheta(self, bin_z):
         """
         Compute and save the w(theta) for a given redshift bin.
-
-        Parameters:
-        - bin_z (int): Redshift bin number.
         """
         xi_ell_dict = self.template_initializer.load_xi_ell(bin_z)
         

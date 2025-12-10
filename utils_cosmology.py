@@ -69,10 +69,7 @@ class CosmologicalParameters:
 
     def get_cosmology(self):
         """
-        Return the initialized Cosmology object.
-
-        Returns:
-        - Cosmology: The Cosmology object initialized with the specified parameters.
+        Return the initialized cosmoprimo.Cosmology object.
         """
         return self.cosmo
         

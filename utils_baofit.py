@@ -19,10 +19,10 @@ class WThetaModelGalaxyBias:
 
         Parameters:
         - include_wiggles (str): Whether to include BAO wiggles.
-        - dataset (str): Dataset identifier (e.g., "DESY6").
+        - dataset (str): Dataset identifier.
         - nz_flag (str): Identifier for the n(z).
         - cosmology_template (str): Cosmology for the template.
-        - save_path (str): Path to save the results. Needed to load the template.
+        - save_path (str): Path where outputs are saved.
         """
         self.include_wiggles = include_wiggles
         self.dataset = dataset
@@ -46,10 +46,12 @@ class WThetaModelGalaxyBias:
         self.z_edges = self.template_initializer.z_edges
 
         # Load and interpolate the theoretical wtheta
-        self.wtheta_components_interp = self._load_and_interpolate_wtheta_components()
+        self.wtheta_th_components_interp = self._load_and_interpolate_wtheta_th_components()
 
-    def _load_and_interpolate_wtheta_components(self):
-        """Load and interpolate the theoretical components of w(theta) (bb, bf, ff)."""
+    def _load_and_interpolate_wtheta_th_components(self):
+        """
+        Load the different components of the theoretical w(theta) (bb, bf, ff) and interpolate them.
+        """
         components_interp = {}
         for bin_z in range(self.nbins):
             # Load the theoretical wtheta for each bin
@@ -63,12 +65,14 @@ class WThetaModelGalaxyBias:
             }
         return components_interp
 
-    def get_wtheta_function(self):
-        """Return a function that computes the theoretical w(theta) for each bin and concatenates them."""
+    def get_wtheta_model(self):
+        """
+        Get the total model w(theta) for each redshift bin and concatenate them.
+        """
         def wtheta(theta, *galaxy_bias):
             wtheta_concatenated = []
             for bin_z in range(self.nbins):
-                interp = self.wtheta_components_interp[bin_z]
+                interp = self.wtheta_th_components_interp[bin_z]
                 b = galaxy_bias[bin_z]
                 wtheta_bin = (
                     b**2 * interp["bb"](theta[bin_z]) +
@@ -78,22 +82,21 @@ class WThetaModelGalaxyBias:
                 wtheta_concatenated.append(wtheta_bin)
 
             return np.concatenate(wtheta_concatenated)
-
         return wtheta
 
-class WThetaModel:
+class WThetaModelBAO:
     def __init__(self, include_wiggles, dataset, nz_flag, cosmology_template, pow_broadband, galaxy_bias, save_path=None):
         """
-        Initialize the WThetaModel class.
+        Initialize the WThetaModelBAO class.
 
         Parameters:
         - include_wiggles (str): Whether to include BAO wiggles.
-        - dataset (str): Dataset identifier (e.g., "DESY6").
+        - dataset (str): Dataset identifier.
         - nz_flag (str): Identifier for the n(z).
         - cosmology_template (str): Cosmology for the template.
         - pow_broadband (list): Powers of theta for the broadband parameters.
         - galaxy_bias (dict): Dictionary containing the linear galaxy bias for each redshift bin.
-        - save_path (str): Path to save the results. Needed to load the template.
+        - save_path (str): Path where outputs are saved.
         """
         self.include_wiggles = include_wiggles
         self.dataset = dataset
@@ -133,10 +136,12 @@ class WThetaModel:
         self.n_params_max = len(self.names_params)
 
         # Interpolation of the theoretical wtheta
-        self.wtheta_th_interp = self._load_and_interpolate_wtheta()
+        self.wtheta_th_interp = self._load_and_interpolate_wtheta_th()
 
-    def _load_and_interpolate_wtheta(self):
-        """Load and interpolate the theoretical w(theta)."""
+    def _load_and_interpolate_wtheta_th(self):
+        """
+        Load the different components of the theoretical w(theta) (bb, bf, ff), combine them and interpolate.
+        """
         wtheta_th_interp = {}
         for bin_z in range(self.nbins):
             # Load the theoretical wtheta for each bin
@@ -155,41 +160,31 @@ class WThetaModel:
             
             # Interpolate the combined wtheta
             wtheta_th_interp[bin_z] = interp1d(theta, wtheta_combined, kind="cubic")
-
         return wtheta_th_interp
 
-    # def wtheta_template_raw(self, theta, alpha, *params):
-    #     """Theoretical template calculation."""
-    #     wtheta_template = np.concatenate([
-    #         params[(1 + self.n_broadband) * bin_z] * self.wtheta_th_interp[bin_z](alpha * theta[bin_z]) +
-    #         params[(1 + self.n_broadband) * bin_z + i + 1] * theta[bin_z]**pb for i, pb in enumerate(self.pow_broadband)
-    #         for bin_z in range(self.nbins)
-    #     ])
-    #     return wtheta_template
-
-    def wtheta_template_raw(self, theta, alpha, *params):
-        """Theoretical w(theta) calculation."""
-        wtheta_template = []
+    def get_wtheta_model(self):
+        """
+        Get the total model w(theta) for each redshift bin and concatenate them.
+        """
+        def wtheta_model(theta, alpha, *params):
+            wtheta = []
+            for bin_z in range(self.nbins):
+                idx = (1 + self.n_broadband) * bin_z
     
-        for bin_z in range(self.nbins):
-            base = params[(1 + self.n_broadband) * bin_z] * self.wtheta_th_interp[bin_z](alpha * theta[bin_z])
+                base = (
+                    params[idx]
+                    * self.wtheta_th_interp[bin_z](alpha * theta[bin_z])
+                )
     
-            broadband = sum(
-                params[(1 + self.n_broadband) * bin_z + i + 1] * theta[bin_z] ** pb
-                for i, pb in enumerate(self.pow_broadband)
-            )
+                broadband = sum(
+                    params[idx + i + 1] * theta[bin_z] ** pb
+                    for i, pb in enumerate(self.pow_broadband)
+                )
     
-            # total for this bin
-            wtheta_template.append(base + broadband)
+                wtheta.append(base + broadband)
     
-        return np.concatenate(wtheta_template)
-
-    def get_wtheta_template(self):
-        """Return the wtheta_template function."""
-        def wtheta_template(theta, *args):
-            return self.wtheta_template_raw(theta, *args)
-
-        return wtheta_template
+            return np.concatenate(wtheta)
+        return wtheta_model
 
 class BAOFitInitializer:
     def __init__(self, include_wiggles, dataset, weight_type, mock_id, nz_flag, cov_type, cosmology_template,
@@ -199,9 +194,9 @@ class BAOFitInitializer:
         Initializes the BAOFitInitializer class.
         Parameters:
         - include_wiggles (str): Whether to include BAO wiggles.
-        - dataset (str): Dataset identifier (e.g., "DESY6").
+        - dataset (str): Dataset identifier.
         - weight_type (int): Weight type (for dataset "DESY6" it should be either 1 or 0).
-        - mock_id (int): Mock id (for dataset "DESY6_COLA" it should go from 0 to 1951).
+        - mock_id (int or str): Identifier for the mock. Use an integer for a specific mock, or the string "mean" to use the average.
         - nz_flag (str): Identifier for the n(z).
         - cov_type (str): Type of covariance.
         - cosmology_template (str): Cosmology for the template.
@@ -212,7 +207,7 @@ class BAOFitInitializer:
         - pow_broadband (list): Powers of theta for the broadband parameters.
         - bins_removed (list): Redshift bins removed when running the BAO fit.
         - verbose (bool): Whether to print messages.
-        - save_path (str): Path to save the results.
+        - save_path (str): Path where outputs are saved.
         """
         self.include_wiggles = include_wiggles
         self.dataset = dataset
@@ -253,7 +248,9 @@ class BAOFitInitializer:
             print(f"Saving output to: {self.path_baofit}")
 
     def _build_config_dict(self):
-        """Build a dictionary of relevant configuration parameters for hashing and saving."""
+        """
+        Build a dictionary of the BAO fit settings for hashing and saving.
+        """
         return {
             "nz_flag": self.nz_flag,
             "cov_type": self.cov_type,
@@ -269,12 +266,16 @@ class BAOFitInitializer:
         }
 
     def _compute_hash_path(self, config):
-        """Compute a unique hash from the configuration dictionary."""
+        """
+        Compute a unique hash from the dictionary of the BAO fit settings.
+        """
         json_str = json.dumps(config, sort_keys=True)
         return hashlib.sha256(json_str.encode()).hexdigest()[:12]
 
     def _check_or_save_config(self):
-        """Save config.json or compare with existing one to ensure it matches."""
+        """
+        Save config.json or compare with existing one to ensure it matches.
+        """
         def normalize(obj):
             if isinstance(obj, dict):
                 return {str(k): normalize(v) for k, v in sorted(obj.items())}
@@ -300,7 +301,9 @@ class BAOFitInitializer:
                 json.dump(self.config_dict, f, indent=2)
 
     def _generate_path_baofit(self):
-        """Generate the save path for the BAO fit results."""
+        """
+        Generate the path to save the BAO fit results.
+        """
         if self.dataset in ["DESY6", "DESY6_dec_below-23.5", "DESY6_dec_above-23.5", "DESY6_DR1tiles_noDESI", "DESY6_DR1tiles_DESIonly"]:
             path = f"{self.save_path}/results/{self.dataset}/fit_results{self.include_wiggles}/weight_{self.weight_type}/{self.hash_path}"
         elif any(substr in self.dataset for substr in ["COLA", "EZ", "Abacus"]):
@@ -310,7 +313,9 @@ class BAOFitInitializer:
         return path
 
     def get_path_baofit(self):
-        """Return the generated path for saving BAO fit results."""
+        """
+        Return the generated path for saving the BAO fit results.
+        """
         return self.path_baofit
 
 class BAOFit:
@@ -320,17 +325,16 @@ class BAOFit:
 
         Parameters:
         - baofit_initializer: Instance of the BAOFitInitializer class.
-        - wtheta_model: Instance of the WThetaModel class.
+        - wtheta_model: Instance of the WThetaModelBAO class.
         - theta_data (array): Theta data for fitting.
         - wtheta_data (dict): Data w(theta) for each bin.
         - cov (array): Covariance matrix.
-        - close_fig (bool): Whether to close the resulting figures or not.
+        - close_fig (bool): Whether to close the resulting figures.
         - use_multiprocessing (bool): Whether to run the BAO fits using multiprocessing.
         - n_cpu (int): Number of CPUs for parallel processing (default: 20).
-        - overwrite (bool): Whether to overwrite existing results or not.
+        - overwrite (bool): Whether to overwrite existing results.
         """
         self.wtheta_model = wtheta_model
-        self.wtheta_template = wtheta_model.get_wtheta_template()
         self.z_edges = wtheta_model.z_edges
         self.theta_data = theta_data
         self.wtheta_data = wtheta_data
@@ -375,28 +379,37 @@ class BAOFit:
         )
     
     def _construct_design_matrix(self):
-        """Construct the design matrix."""
+        """
+        Construct the design matrix.
+        """
         for i in np.arange(0, self.nbins * self.n_broadband):
             fit_params = np.zeros(self.n_params)
             fit_params[0] = 1
             fit_params[self.pos_broadband[i]] = 1
-            self.design_matrix[:, i] = self.wtheta_template(self.theta_data, *fit_params)
-
-    def least_squares(self, params):
-        """Least squares function to minimize."""
-        wtheta_th = self.wtheta_template(self.theta_data, *params)
-        diff = self.wtheta_data_concatenated - wtheta_th
-        return diff @ self.inv_cov @ diff
+            self.design_matrix[:, i] = self.wtheta_model.get_wtheta_model()(self.theta_data, *fit_params)
 
     def broadband_params(self, amplitude_params, alpha):
-        """Compute the broadband parameters."""
+        """
+        Analytically compute the broadband parameters using the inverse of the design matrix.
+        """
         fit_params = np.zeros(self.n_params)
         fit_params[0] = alpha
         fit_params[self.pos_amplitude] = amplitude_params
-        return self.pseudo_inverse_matrix @ (self.wtheta_data_concatenated - self.wtheta_template(self.theta_data, *fit_params))
+        return self.pseudo_inverse_matrix @ (self.wtheta_data_concatenated - self.wtheta_model.get_wtheta_model()(self.theta_data, *fit_params))
+    
+    def least_squares(self, params):
+        """
+        Full chi2 function. It depends on alpha, the amplitude parameters and the broadband parametes.
+        """
+        wtheta_th = self.wtheta_model.get_wtheta_model()(self.theta_data, *params)
+        diff = self.wtheta_data_concatenated - wtheta_th
+        return diff @ self.inv_cov @ diff
 
     def regularized_least_squares(self, amplitude_params, alpha):
-        """Least squares with broadband parameters."""
+        """
+        Regularized chi2 function. It depends only on the amplitude parameters and alpha, because the broadband parameters 
+        are computed analytically from these and do not appear as independent variables in the fit.
+        """
         fit_params = np.zeros(self.n_params)
         fit_params[0] = alpha
         fit_params[self.pos_amplitude] = amplitude_params
@@ -407,8 +420,9 @@ class BAOFit:
         return self.least_squares(fit_params) + np.sum(((amplitude_params - vector_ones) / 0.4) ** 2)
 
     def fit(self):
-        """Perform the fitting procedure to find the best-fit alpha."""
-
+        """
+        Perform the fitting procedure to find the best-fit alpha and its error.
+        """
         if os.path.exists(os.path.join(self.path_baofit, "fit_results.txt")) and not self.overwrite:
             print("The output already exists! Loading the results and skipping BAO fit...")
             alpha_best, err_alpha, chi2_best, dof = np.loadtxt(os.path.join(self.path_baofit, "fit_results.txt")).T
@@ -466,7 +480,7 @@ class BAOFit:
                 for bin_z in range(self.nbins):
                     theta_data_interp[bin_z] = np.linspace(self.theta_data[bin_z][0], self.theta_data[bin_z][-1], 10**3)
     
-                wtheta_fit_best = self.wtheta_template(theta_data_interp, *params_best)
+                wtheta_fit_best = self.wtheta_model.get_wtheta_model()(theta_data_interp, *params_best)
     
                 # Plot the w(theta)
                 nbins_eff = self.nbins - len(self.bins_removed)
@@ -524,7 +538,7 @@ class BAOFit:
                     np.column_stack([
                         np.concatenate([self.theta_data[bin_z] for bin_z in range(self.nbins)]),
                         self.wtheta_data_concatenated,
-                        self.wtheta_template(self.theta_data, *params_best),
+                        self.wtheta_model.get_wtheta_model()(self.theta_data, *params_best),
                         np.sqrt(np.diag(self.cov))
                     ])
                 )

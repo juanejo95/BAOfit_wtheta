@@ -11,10 +11,10 @@ class RedshiftDistributions:
         Initialize the RedshiftDistributions class.
 
         Parameters:
-        - dataset (str): Dataset identifier (e.g., "DESY6").
+        - dataset (str): Dataset identifier.
         - nz_flag (str): Identifier for the n(z).
         - verbose (bool): Whether to print messages.
-        - code_path (str): Path to the folder 'datasets'.
+        - code_path (str): Path to the code.
         """
         self.dataset = dataset
         self.nz_flag = nz_flag
@@ -74,7 +74,9 @@ class RedshiftDistributions:
             print(f"Using {self.dataset} {self.nz_flag} n(z), which has {self.nbins} redshift bins")
 
     def nz_interp(self, z, bin_z):
-        """Interpolate n(z) for a given redshift z and bin."""
+        """
+        Interpolate n(z) for a given redshift z and redshift bin.
+        """
         if self.nz_type == "widebin":
             return np.interp(z, self.nz_data[:, 0], self.nz_data[:, bin_z + 1])
         elif self.nz_type == "thinbin":
@@ -85,7 +87,9 @@ class RedshiftDistributions:
             return result if z.ndim > 0 else result.item()
 
     def z_average(self, bin_z):
-        """Calculate the average redshift for a given bin."""
+        """
+        Calculate the average redshift for a given redshift bin.
+        """
         if self.nz_type == "widebin":
             return np.trapz(self.nz_data[:, 0] * self.nz_data[:, bin_z + 1], self.nz_data[:, 0])
         elif self.nz_type == "thinbin":
@@ -94,7 +98,7 @@ class RedshiftDistributions:
     def z_values(self, bin_z, Nz=10**3, target_area=0.99, verbose=True):
         """
         Generate a vector of redshift values such that the integral of n(z) over the range 
-        is at least target_area.
+        is, at least, target_area.
         """
         if self.nz_type == "widebin":
             zmin_full = self.nz_data[:, 0].min()
@@ -135,10 +139,10 @@ class GetThetaLimits:
         Initialize the GetThetaLimits class.
 
         Parameters:
-        - dataset (str): Dataset identifier (e.g., "DESY6").
+        - dataset (str): Dataset identifier.
         - nz_flag (str): Identifier for the n(z).
-        - dynamical_theta_limits (bool): Whether to give dynamical theta ranges or not.
-        - code_path (str): Path to the folder 'datasets'.
+        - dynamical_theta_limits (bool): Whether to use dynamical theta ranges.
+        - code_path (str): Path to the code.
         """
         self.dataset = dataset
         self.nz_flag = nz_flag
@@ -154,12 +158,21 @@ class GetThetaLimits:
         self.nbins = self.redshift_distributions.nbins
 
     def _angular_bao_scale_deg(self, z, cosmo):
+        """
+        Get the angular BAO scale for a given redshift and some cosmological parameters.
+        """
         rd_mpc = cosmo.rs_drag / cosmo.h
         DA = cosmo.comoving_angular_distance(z)
         theta_rad = rd_mpc / ((1 + z) * DA)
         return np.degrees(theta_rad)
 
     def _get_dynamical_limits(self):
+        """
+        Compute per-bin theta limits centered around an approximate BAO angular scale. For each redshift bin, 
+        the effective redshift is used to estimate the BAO angle, apply an empirical shift, and define a theta
+        window of width 'theta_width' around this center. This provides a reduced theta range that should 
+        contain the BAO feature without evaluating the full theta grid.
+        """
         from cosmoprimo.fiducial import DESI
         cosmo = DESI()
         theta_min, theta_max = {}, {}
@@ -174,6 +187,9 @@ class GetThetaLimits:
         return theta_min, theta_max
 
     def _get_constant_limits(self):
+        """
+        Return fixed theta limits for all redshift bins.
+        """
         if "DESY6" in self.dataset:
             theta_max_val = 5
         elif "DESIY1" in self.dataset:
@@ -186,6 +202,9 @@ class GetThetaLimits:
         return theta_min, theta_max
 
     def get_theta_limits(self):
+        """
+        Return the theta limits for all redshift bins. Two dicionaries: theta_min and theta_max.
+        """
         if self.dynamical_theta_limits:
             return self._get_dynamical_limits()
         else:
@@ -198,9 +217,9 @@ class WThetaDataCovariance:
         Initialize the WThetaDataCovariance class.
 
         Parameters:
-        - dataset (str): Dataset identifier (e.g., "DESY6").
+        - dataset (str): Dataset identifier.
         - weight_type (int): Weight type (for dataset "DESY6" it should be either 1 or 0).
-        - mock_id (int): Mock id (for dataset "DESY6_COLA", it should go from 0 to 1951).
+        - mock_id (int or str): Identifier for the mock. Use an integer for a specific mock, or the string "mean" to use the average.
         - nz_flag (str): Identifier for the n(z).
         - cov_type (str): Type of covariance.
         - cosmology_covariance (str): Cosmology for the covariance.
@@ -210,7 +229,7 @@ class WThetaDataCovariance:
         - bins_removed (list): Redshift bins removed when running the BAO fit.
         - diag_only (str): Whether to keep only the diagonal of the covariance.
         - remove_crosscov (str): Whether to remove the cross-covariances between redshift bins.
-        - code_path (str): Path to the folder 'datasets'.
+        - code_path (str): Path to the code.
         """
         self.dataset = dataset
         self.weight_type = weight_type
@@ -234,7 +253,9 @@ class WThetaDataCovariance:
         self.nbins = self.redshift_distributions.nbins
 
     def load_wtheta_data(self):
-
+        """
+        Load the data w(theta), zero out all redshift bins specified in 'bins_removed' and apply scale cuts.
+        """
         indices_theta_allbins = {}
         theta_wtheta_data = {}
         wtheta_data = {}
@@ -337,6 +358,10 @@ class WThetaDataCovariance:
         return theta_wtheta_data, wtheta_data
 
     def load_covariance_matrix(self):
+        """
+        Load the covariance matrix, zero out cross-covariances of redshift bins specified in 'bins_removed' with all
+        other bins and apply scale cuts.
+        """
         theta_cov = {}
 
         path_cov = f"{self.code_path}/datasets/{self.dataset}/cov_{self.cov_type}"
@@ -445,6 +470,9 @@ class WThetaDataCovariance:
         return theta_cov_cut, cov_cut
 
     def process(self):
+        """
+        Load and validate the data w(theta) and covariance matrix.
+        """
         theta_data, wtheta_data = self.load_wtheta_data()
         theta_cov, cov = self.load_covariance_matrix()
     
