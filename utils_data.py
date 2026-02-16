@@ -147,7 +147,7 @@ class GetThetaLimits:
         self.dataset = dataset
         self.nz_flag = nz_flag
         self.dynamical_theta_limits = dynamical_theta_limits
-        self.theta_width = 4
+        self.theta_width = 6
 
         if code_path is None:
             code_path = f"{os.environ['PSCRATCH']}/BAOfit_wtheta"
@@ -183,7 +183,6 @@ class GetThetaLimits:
             theta_bao = self._angular_bao_scale_deg(zeff, cosmo) + (zeff - 0.4)
             theta_min[bin_z] = theta_bao - self.theta_width / 2
             theta_max[bin_z] = theta_bao + self.theta_width / 2
-        
         return theta_min, theta_max
 
     def _get_constant_limits(self):

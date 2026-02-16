@@ -417,7 +417,7 @@ class BAOFit:
 
         vector_ones = np.ones(self.nbins)
         vector_ones[self.bins_removed] = 0
-        return self.least_squares(fit_params) + np.sum(((amplitude_params - vector_ones) / 0.4) ** 2)
+        return self.least_squares(fit_params) #+ np.sum(((amplitude_params - vector_ones) / 0.4) ** 2)
 
     def fit(self):
         """
