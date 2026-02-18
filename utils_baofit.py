@@ -110,17 +110,30 @@ class WThetaModelBAO:
         if save_path is None:
             save_path = f"{os.environ['PSCRATCH']}/BAOfit_wtheta"
         self.save_path = save_path
-        
-        self.template_initializer = TemplateInitializer(
-            include_wiggles=self.include_wiggles,
+
+        # Initializer of the no-wiggle template (always needed)
+        self.template_initializer_nowigg = TemplateInitializer(
+            include_wiggles="_nowiggles",
             dataset=self.dataset,
             nz_flag=self.nz_flag,
             cosmology_template=self.cosmology_template,
             verbose=False,
             save_path=self.save_path,
         )
-        self.nbins = self.template_initializer.nbins
-        self.z_edges = self.template_initializer.z_edges
+        
+        if self.include_wiggles == "":
+            # Initializer of the wiggle template (only if needed)
+            self.template_initializer_wigg = TemplateInitializer(
+                include_wiggles=self.include_wiggles,
+                dataset=self.dataset,
+                nz_flag=self.nz_flag,
+                cosmology_template=self.cosmology_template,
+                verbose=False,
+                save_path=self.save_path,
+            )
+        
+        self.nbins = self.template_initializer_nowigg.nbins
+        self.z_edges = self.template_initializer_nowigg.z_edges
 
         params = ["alpha"]
         for bin_z in range(self.nbins):
@@ -136,31 +149,43 @@ class WThetaModelBAO:
         self.n_params_max = len(self.names_params)
 
         # Interpolation of the theoretical wtheta
-        self.wtheta_th_interp = self._load_and_interpolate_wtheta_th()
+        self.wtheta_wigg_th_interp, self.wtheta_nowigg_th_interp = self._load_and_interpolate_wtheta_th()
 
     def _load_and_interpolate_wtheta_th(self):
         """
         Load the different components of the theoretical w(theta) (bb, bf, ff), combine them and interpolate.
         """
-        wtheta_th_interp = {}
+        wigg_interp = {}
+        nowigg_interp = {}
+    
         for bin_z in range(self.nbins):
-            # Load the theoretical wtheta for each bin
-            wtheta_dict = self.template_initializer.load_wtheta(bin_z)
-            theta = wtheta_dict["bb"][:, 0]
-            wtheta_bb = wtheta_dict["bb"][:, 1]
-            wtheta_bf = wtheta_dict["bf"][:, 1]
-            wtheta_ff = wtheta_dict["ff"][:, 1]
-
-            # Combine these into the final wtheta model for the bin
-            wtheta_combined = (
-                self.galaxy_bias[bin_z]**2 * wtheta_bb + 
-                self.galaxy_bias[bin_z] * wtheta_bf + 
-                wtheta_ff
+    
+            # No-wiggle (always needed)
+            wtheta_dict_nowigg = self.template_initializer_nowigg.load_wtheta(bin_z)
+    
+            theta = wtheta_dict_nowigg["bb"][:, 0]
+    
+            wtheta_nowigg = (
+                self.galaxy_bias[bin_z]**2 * wtheta_dict_nowigg["bb"][:, 1] +
+                self.galaxy_bias[bin_z] * wtheta_dict_nowigg["bf"][:, 1] +
+                wtheta_dict_nowigg["ff"][:, 1]
             )
-            
-            # Interpolate the combined wtheta
-            wtheta_th_interp[bin_z] = interp1d(theta, wtheta_combined, kind="cubic")
-        return wtheta_th_interp
+    
+            nowigg_interp[bin_z] = interp1d(theta, wtheta_nowigg, kind="cubic")
+    
+            # Wiggle (only if needed)
+            if self.include_wiggles == "":
+                wtheta_dict_wigg = self.template_initializer_wigg.load_wtheta(bin_z)
+    
+                wtheta_wigg = (
+                    self.galaxy_bias[bin_z]**2 * wtheta_dict_wigg["bb"][:, 1] +
+                    self.galaxy_bias[bin_z] * wtheta_dict_wigg["bf"][:, 1] +
+                    wtheta_dict_wigg["ff"][:, 1]
+                )
+    
+                wigg_interp[bin_z] = interp1d(theta, wtheta_wigg, kind="cubic")
+    
+        return wigg_interp if wigg_interp else None, nowigg_interp
 
     def get_wtheta_model(self):
         """
@@ -171,11 +196,21 @@ class WThetaModelBAO:
             for bin_z in range(self.nbins):
                 idx = (1 + self.n_broadband) * bin_z
     
-                base = (
-                    params[idx]
-                    * self.wtheta_th_interp[bin_z](alpha * theta[bin_z])
-                )
+                # Wiggle contribution
+                if self.include_wiggles == "":
+                    wiggle_part = (
+                        self.wtheta_wigg_th_interp[bin_z](alpha * theta[bin_z])
+                        - self.wtheta_nowigg_th_interp[bin_z](alpha * theta[bin_z])
+                    )
+                else:
+                    wiggle_part = 0
     
+                # No-wiggle contribution
+                nowiggle_part = self.wtheta_nowigg_th_interp[bin_z](theta[bin_z])
+    
+                base = params[idx] * (nowiggle_part + wiggle_part)
+    
+                # Broadband
                 broadband = sum(
                     params[idx + i + 1] * theta[bin_z] ** pb
                     for i, pb in enumerate(self.pow_broadband)
@@ -335,6 +370,7 @@ class BAOFit:
         - overwrite (bool): Whether to overwrite existing results.
         """
         self.wtheta_model = wtheta_model
+        self.include_wiggles = wtheta_model.include_wiggles
         self.z_edges = wtheta_model.z_edges
         self.theta_data = theta_data
         self.wtheta_data = wtheta_data
@@ -501,8 +537,13 @@ class BAOFit:
                             zorder=-1000
                         )
                         ax.plot(
-                            theta_data_interp[bin_z] * 180 / np.pi, 
-                            100 * (theta_data_interp[bin_z] * 180 / np.pi) ** 2 * self.wtheta_model.wtheta_th_interp[bin_z](theta_data_interp[bin_z]),
+                            theta_data_interp[bin_z] * 180 / np.pi,
+                            100 * (theta_data_interp[bin_z] * 180 / np.pi) ** 2 *
+                            (
+                                self.wtheta_model.wtheta_wigg_th_interp[bin_z](theta_data_interp[bin_z])
+                                if self.include_wiggles == ""
+                                else self.wtheta_model.wtheta_nowigg_th_interp[bin_z](theta_data_interp[bin_z]) # actually the no-wiggle case will never be plotted because the script will never reach this point
+                            ),
                             color="red", linestyle="--",
                             label="template"
                         )
