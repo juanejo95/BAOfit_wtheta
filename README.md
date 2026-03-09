@@ -50,6 +50,7 @@ where $z_{\rm eff}$ is the effective redshift of the galaxy sample, $D_M(z)$ is 
 - `utils_data.py` returns the redshift distributions, data $w(\theta)$ and covariance for a given dataset.
 - `utils_template.py` computes the theoretical template for the $w(\theta)$.
 - `utils_baofit.py` runs the BAO fits.
+- `utils_inference.py` runs cosmological inference using the BAO-fit results.
 
 ## Requirements
 
@@ -58,6 +59,8 @@ where $z_{\rm eff}$ is the effective redshift of the galaxy sample, $D_M(z)$ is 
 - scipy
 - pathos
 - cosmoprimo
+- emcee
+- getdist
 
 ## Examples
 
