@@ -273,6 +273,8 @@ class BAOFitInitializer:
         - theta_max (dict): Maximum theta value for each redshift bin.
         - pow_broadband (list): Powers of theta for the broadband parameters.
         - bins_removed (list): Redshift bins removed when running the BAO fit.
+        - alpha_min (float): Minimum alpha allowed for the BAO fit.
+        - alpha_max (float): Maximum alpha allowed for the BAO fit.
         - alpha_type (str): Either "alpha_wigg_only" (default: alpha only affects the wiggle part of the template) or "alpha_wigg_nowigg" (old choice: alpha enters in both the wiggle and the no-wiggle parts of the template).
         - verbose (bool): Whether to print messages.
         - save_path (str): Path where outputs are saved.
@@ -290,11 +292,11 @@ class BAOFitInitializer:
         self.theta_max = theta_max
         self.pow_broadband = sorted(pow_broadband)
         self.bins_removed = sorted(bins_removed)
-        self.verbose = verbose
         self.alpha_min = alpha_min
         self.alpha_max = alpha_max
         self.alpha_type = alpha_type
         self.Nalpha = 10**3
+        self.verbose = verbose
 
         self.n_broadband = len(self.pow_broadband)
 
@@ -313,7 +315,7 @@ class BAOFitInitializer:
         # Save or verify configuration
         self._check_or_save_config()
 
-        if verbose:
+        if self.verbose:
             print(f"Saving output to: {self.path_baofit}")
 
     def _build_config_dict(self):
