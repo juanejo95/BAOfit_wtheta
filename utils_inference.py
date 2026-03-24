@@ -18,7 +18,7 @@ from utils_baofit import BAOFitInitializer
 class BAOFitChecker:
     def __init__(self, dataset, weight_type, mock_id, nz_flag, cov_type, cosmology_template,
              cosmology_covariance, delta_theta, theta_min, theta_max, pow_broadband, bins_removed, 
-             alpha_min=0.8, alpha_max=1.2, alpha_type="alpha_wiggigg_only", verbose=True, code_path=None, save_path=None):
+             alpha_min=0.8, alpha_max=1.2, alpha_type="alpha_wigg_only", verbose=True, code_path=None, save_path=None):
         """
         Initializes the BAOFitChecker class.
         Parameters:
@@ -150,7 +150,7 @@ class BAOFitChecker:
             self.path_baofit_wigg = path_baofit_wigg # we will use it in BAOinference
 
             if self.verbose:
-                print(f"Dataset {self.dataset} has a detection with Δχ² = {self.delta_chi2:.3f} (significance = {self.significance:.2f}σ)")
+                print(f"Dataset {self.dataset} has a detection with Δχ² = {self.delta_chi2:.3f} (significance = {self.significance:.2f}σ).")
 
         else:
 
@@ -172,7 +172,7 @@ class BAOFitChecker:
         )
 
 class BAOInference:
-    def __init__(self, baofit_checker, bounds=None, nwalkers=32, nsteps=5000, burnin=1000, overwrite=False, verbose=True):
+    def __init__(self, baofit_checker, z_eff=None, bounds=None, nwalkers=32, nsteps=5000, burnin=1000, overwrite=False, verbose=True):
         """
         Initializes the BAOInference class.
         Parameters:
@@ -193,6 +193,7 @@ class BAOInference:
         self.baofit_checker = baofit_checker
         self.cosmology_template = baofit_checker.cosmology_template
         self.path_baofit_wigg = baofit_checker.path_baofit_wigg
+        self.z_eff = z_eff
         self.bounds = bounds or [(60.0, 130.0), (0.1, 0.9)]
         self.nwalkers = nwalkers
         self.nsteps = nsteps
@@ -203,12 +204,10 @@ class BAOInference:
         if self.verbose:
             print(f"Saving output to: {self.path_baofit_wigg}")
 
-        # Use the wiggle chi2 file
-        self.chi2_files = [os.path.join(self.path_baofit_wigg, "likelihood_data.txt")]
-
         # Redshift distribution. Needed for the effective redshift
         self.redshift_distributions = RedshiftDistributions(self.baofit_checker.dataset, self.baofit_checker.nz_flag, verbose=False, code_path=self.baofit_checker.code_path)
 
+        # Always compute z_eff from the n(z)
         z_avg = []
         for bin_z in range(self.redshift_distributions.nbins):
             if bin_z not in self.baofit_checker.bins_removed:
@@ -216,12 +215,21 @@ class BAOInference:
                     z_avg.append(self.redshift_distributions.z_average(bin_z))
                 elif self.redshift_distributions.nz_type == "thinbin":
                     z_avg.append(self.redshift_distributions.nz_data[bin_z, 0])
-        self.z_eff = np.mean(z_avg)
-        print(f"Assuming an effective redshift of {self.z_eff}")
+        
+        z_eff_computed = np.mean(z_avg)
+        
+        if self.z_eff is None:
+            self.z_eff = z_eff_computed
+            print(f"Assuming an effective redshift of {self.z_eff} (computed from redshift distributions)")
+        else:
+            print(f"Using input effective redshift {self.z_eff}. Computed value from the n(z) would be {z_eff_computed}.")
 
         # Setup fiducial cosmology
         self._setup_fiducial_cosmology(self.cosmology_template)
 
+        # Use the wiggle chi2 file
+        self.chi2_files = [os.path.join(self.path_baofit_wigg, "likelihood_data.txt")]
+        
         # Load chi2 interpolators
         self._load_chi2_interpolators()
 
