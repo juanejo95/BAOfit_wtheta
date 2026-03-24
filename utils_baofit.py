@@ -13,7 +13,7 @@ plt.rcParams["font.serif"] = "Times New Roman"
 from utils_template import TemplateInitializer
 
 class WThetaModelGalaxyBias:
-    def __init__(self, include_wiggles, dataset, nz_flag, cosmology_template, save_path=None):
+    def __init__(self, include_wiggles, dataset, nz_flag, cosmology_template, code_path=None, save_path=None):
         """
         Initialize the WThetaModelGalaxyBias class.
 
@@ -29,6 +29,10 @@ class WThetaModelGalaxyBias:
         self.nz_flag = nz_flag
         self.cosmology_template = cosmology_template
 
+        if code_path is None:
+            code_path = f"{os.environ['PSCRATCH']}/BAOfit_wtheta"
+        self.code_path = code_path
+
         if save_path is None:
             save_path = f"{os.environ['PSCRATCH']}/BAOfit_wtheta"
         self.save_path = save_path
@@ -40,6 +44,7 @@ class WThetaModelGalaxyBias:
             nz_flag=self.nz_flag,
             cosmology_template=self.cosmology_template,
             verbose=False,
+            code_path=self.code_path,
             save_path=self.save_path,
         )
         self.nbins = self.template_initializer.nbins
@@ -85,7 +90,7 @@ class WThetaModelGalaxyBias:
         return wtheta
 
 class WThetaModelBAO:
-    def __init__(self, include_wiggles, dataset, nz_flag, cosmology_template, pow_broadband, galaxy_bias, alpha_type="alpha_wigg_only", save_path=None):
+    def __init__(self, include_wiggles, dataset, nz_flag, cosmology_template, pow_broadband, galaxy_bias, alpha_type="alpha_wigg_only", code_path=None, save_path=None):
         """
         Initialize the WThetaModelBAO class.
 
@@ -108,6 +113,10 @@ class WThetaModelBAO:
         self.alpha_type = alpha_type
 
         self.n_broadband = len(self.pow_broadband)
+
+        if code_path is None:
+            code_path = f"{os.environ['PSCRATCH']}/BAOfit_wtheta"
+        self.code_path = code_path
         
         if save_path is None:
             save_path = f"{os.environ['PSCRATCH']}/BAOfit_wtheta"
@@ -121,6 +130,7 @@ class WThetaModelBAO:
                 nz_flag=self.nz_flag,
                 cosmology_template=self.cosmology_template,
                 verbose=False,
+                code_path=self.code_path,
                 save_path=self.save_path,
             )
             
@@ -132,6 +142,7 @@ class WThetaModelBAO:
                     nz_flag=self.nz_flag,
                     cosmology_template=self.cosmology_template,
                     verbose=False,
+                    code_path=self.code_path,
                     save_path=self.save_path,
                 )
 
@@ -145,6 +156,7 @@ class WThetaModelBAO:
                 nz_flag=self.nz_flag,
                 cosmology_template=self.cosmology_template,
                 verbose=False,
+                code_path=self.code_path,
                 save_path=self.save_path,
             )
 
@@ -375,12 +387,15 @@ class BAOFitInitializer:
         """
         Generate the path to save the BAO fit results.
         """
-        if self.dataset in ["DESY6", "DESY6_dec_below-23.5", "DESY6_dec_above-23.5", "DESY6_DR1tiles_noDESI", "DESY6_DR1tiles_DESIonly"]:
-            path = f"{self.save_path}/results/{self.dataset}/{self.alpha_type}/fit_results{self.include_wiggles}/weight_{self.weight_type}/{self.hash_path}"
-        elif any(substr in self.dataset for substr in ["COLA", "EZ", "Abacus"]):
+        if any(substr in self.dataset for substr in ["COLA", "EZ", "Abacus"]):
             path = f"{self.save_path}/results/{self.dataset}/{self.alpha_type}/fit_results{self.include_wiggles}/mock_{self.mock_id}/{self.hash_path}"
         else:
-            raise ValueError(f"Unsupported dataset: {self.dataset}")
+            if "DESY6" in self.dataset:
+                path = f"{self.save_path}/results/{self.dataset}/{self.alpha_type}/fit_results{self.include_wiggles}/weight_{self.weight_type}/{self.hash_path}"
+            elif "DESIY1" in self.dataset:
+                path = f"{self.save_path}/results/{self.dataset}/{self.alpha_type}/fit_results{self.include_wiggles}/{self.hash_path}"
+            else:
+                raise ValueError(f"Unsupported dataset: {self.dataset}")
         return path
 
     def get_path_baofit(self):
@@ -602,7 +617,7 @@ class BAOFit:
                         ax.tick_params(axis="x", labelsize=18)
                         ax.tick_params(axis="y", labelsize=18)
                         z_edge = self.z_edges[bin_z]
-                        if "DESIY1_LRG" in self.dataset:
+                        if "DESIY1" in self.dataset:
                             ax.text(0.13, 0.1, f"{z_edge[0]:.2f} $< z <$ {z_edge[1]:.2f}", ha="center", va="center", transform=ax.transAxes, fontsize=18)
                         else:
                             ax.text(0.13, 0.1, f"{z_edge[0]} $< z <$ {z_edge[1]}", ha="center", va="center", transform=ax.transAxes, fontsize=18)
