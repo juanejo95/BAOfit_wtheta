@@ -115,7 +115,10 @@ class BAOFitChecker:
             results_nowigg = np.loadtxt(os.path.join(path_baofit_nowigg, "fit_results.txt"))
         except OSError:
             if self.verbose:
-                print(f"Missing BAO-fit results for dataset {self.dataset}. Please, run the BAO fit first!")
+                if any(substr in self.dataset for substr in ["COLA", "EZ", "Abacus"]):
+                    print(f"Missing BAO-fit results for dataset {self.dataset} (mock {self.mock_id}). Please, run the BAO fit first!")
+                else:
+                    print(f"Missing BAO-fit results for dataset {self.dataset}. Please, run the BAO fit first!")
             return
 
         chi2_wigg = results_wigg[2]
@@ -150,12 +153,18 @@ class BAOFitChecker:
             self.path_baofit_wigg = path_baofit_wigg # we will use it in BAOinference
 
             if self.verbose:
-                print(f"Dataset {self.dataset} has a detection with Δχ² = {self.delta_chi2:.3f} (significance = {self.significance:.2f}σ).")
+                if any(substr in self.dataset for substr in ["COLA", "EZ", "Abacus"]):
+                    print(f"Dataset {self.dataset} (mock {self.mock_id}) has a detection with Δχ² = {self.delta_chi2:.3f} (significance = {self.significance:.2f}σ).")
+                else:
+                    print(f"Dataset {self.dataset} has a detection with Δχ² = {self.delta_chi2:.3f} (significance = {self.significance:.2f}σ).")
 
         else:
 
             if self.verbose:
-                print(f"Dataset {self.dataset} has a detection but a Δχ² = {self.delta_chi2:.3f}")
+                if any(substr in self.dataset for substr in ["COLA", "EZ", "Abacus"]):
+                    print(f"Dataset {self.dataset} (mock {self.mock_id}) has a detection but a Δχ² = {self.delta_chi2:.3f}")
+                else:
+                    print(f"Dataset {self.dataset} has a detection but a Δχ² = {self.delta_chi2:.3f}")
 
     def get_detection_info(self):
         """
