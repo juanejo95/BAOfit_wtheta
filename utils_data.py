@@ -26,7 +26,7 @@ class RedshiftDistributions:
         
         # File paths based on dataset and nz_flag
         if "DESY6" in self.dataset:
-            self.nz_type = "widebin"
+            self.nz_type = "widebin" # they have their own n(z) inside their corresponding folder
             if "COLA" in dataset:
                 if self.nz_flag == "mocks":
                     file_path = f"{self.code_path}/datasets/{self.dataset}/nz/nz_Y6COLA.txt"
@@ -49,7 +49,7 @@ class RedshiftDistributions:
                 else:
                     raise ValueError(f"Unknown nz_flag: {self.nz_flag} for dataset: {self.dataset}")
         elif "DESIY1" in self.dataset:
-            self.nz_type = "thinbin"
+            self.nz_type = "thinbin" # the n(z) will be top-hat functions
             if self.nz_flag == "mocks":
                 file_path = f"{self.code_path}/datasets/{self.dataset}/nz/mean_nzs.txt"
         else:
@@ -134,7 +134,7 @@ class RedshiftDistributions:
             raise NotImplementedError(f"No need to implement for dataset {self.dataset}.")
 
 class GetThetaLimits:
-    def __init__(self, dataset, nz_flag, dynamical_theta_limits=False, code_path=None):
+    def __init__(self, dataset, nz_flag, dynamical_theta_limits=False, theta_width=6, code_path=None):
         """
         Initialize the GetThetaLimits class.
 
@@ -142,12 +142,13 @@ class GetThetaLimits:
         - dataset (str): Dataset identifier.
         - nz_flag (str): Identifier for the n(z).
         - dynamical_theta_limits (bool): Whether to use dynamical theta ranges.
+        - theta_width (float): Width in deg around the approximate BAO angular scale used for the dynamical scale cuts.
         - code_path (str): Path to the code.
         """
         self.dataset = dataset
         self.nz_flag = nz_flag
         self.dynamical_theta_limits = dynamical_theta_limits
-        self.theta_width = 6
+        self.theta_width = theta_width
 
         if code_path is None:
             code_path = f"{os.environ['PSCRATCH']}/BAOfit_wtheta"
