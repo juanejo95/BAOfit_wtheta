@@ -121,8 +121,14 @@ class BAOFitChecker:
                     print(f"Missing BAO-fit results for dataset {self.dataset}. Please, run the BAO fit first!")
             return
 
-        chi2_wigg = results_wigg[2]
-        chi2_nowigg = results_nowigg[2]
+        # chi2_wigg = results_wigg[2]
+        # chi2_nowigg = results_nowigg[2]
+
+        chi2profile_wigg = np.loadtxt(os.path.join(path_baofit_wigg, "likelihood_data.txt"))
+        chi2profile_nowigg = np.loadtxt(os.path.join(path_baofit_nowigg, "likelihood_data.txt"))
+        pos = np.argmin(chi2profile_wigg[:, 1])
+        chi2_wigg = chi2profile_wigg[pos, 1]
+        chi2_nowigg = chi2profile_nowigg[pos, 1]
 
         # Compute detection significance
         self.delta_chi2 = chi2_nowigg - chi2_wigg
@@ -137,7 +143,10 @@ class BAOFitChecker:
 
         if not os.path.exists(bestfit_file):
             if self.verbose:
-                print(f"Dataset {self.dataset} has a non-detection.")
+                if any(substr in self.dataset for substr in ["COLA", "EZ", "Abacus"]):
+                    print(f"Dataset {self.dataset} (mock {self.mock_id}) has a non-detection.")
+                else:
+                    print(f"Dataset {self.dataset} has a non-detection.")
             return
 
         # Final detection condition
@@ -229,9 +238,11 @@ class BAOInference:
         
         if self.z_eff is None:
             self.z_eff = z_eff_computed
-            print(f"Assuming an effective redshift of {self.z_eff} (computed from redshift distributions)")
+            if self.verbose:
+                print(f"Assuming an effective redshift of {self.z_eff} (computed from redshift distributions)")
         else:
-            print(f"Using input effective redshift {self.z_eff}. Computed value from the n(z) would be {z_eff_computed}.")
+            if self.verbose:
+                print(f"Using input effective redshift {self.z_eff}. Computed value from the n(z) would be {z_eff_computed}.")
 
         # Setup fiducial cosmology
         self._setup_fiducial_cosmology(self.cosmology_template)
