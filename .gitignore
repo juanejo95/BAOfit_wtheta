@@ -15,20 +15,23 @@ datasets/DESY6_COLA_dec_above-23.5/wtheta/wtheta.zip
 datasets/DESY6_COLA_DR1tiles_noDESI/wtheta/wtheta.zip
 datasets/DESY6_COLA_DR1tiles_DESIonly/wtheta/wtheta.zip
 
-datasets/DESIY1_LRG_EZ_ffa_deltaz0.028
-datasets/DESIY1_LRG_Abacus_altmtl_deltaz0.028
-datasets/DESIY1_LRG_EZ_complete_deltaz0.028
-datasets/DESIY1_LRG_Abacus_complete_deltaz0.028
+datasets/DESIY1_LRG_EZ_ffa_pre_deltaz0.02
+datasets/DESIY1_LRG_EZ_ffa_post_deltaz0.02
+datasets/DESIY1_LRG_Abacus_altmtl_pre_deltaz0.02
+datasets/DESIY1_LRG_Abacus_altmtl_post_deltaz0.02
 
-datasets/DESIY1_LRG_EZ_ffa_deltaz0.02
-datasets/DESIY1_LRG_Abacus_altmtl_deltaz0.02
-datasets/DESIY1_LRG_EZ_complete_deltaz0.02
-datasets/DESIY1_LRG_Abacus_complete_deltaz0.02
+datasets/DESIY1_LRG+ELG_EZ_ffa_pre_deltaz0.02
+datasets/DESIY1_LRG+ELG_EZ_ffa_post_deltaz0.02
 
-datasets/DESIY1_LRG_EZ_ffa_recon_deltaz0.02
-datasets/DESIY1_LRG_Abacus_altmtl_recon_deltaz0.02
-datasets/DESIY1_LRG_EZ_complete_recon_deltaz0.02
-datasets/DESIY1_LRG_Abacus_complete_recon_deltaz0.02
+datasets/DESIY1_ELG_EZ_ffa_pre_deltaz0.02
+datasets/DESIY1_ELG_EZ_ffa_post_deltaz0.02
+
+datasets/DESIY1_LRG_pre_deltaz0.02
+datasets/DESIY1_LRG_post_deltaz0.02
+datasets/DESIY1_LRG+ELG_pre_deltaz0.02
+datasets/DESIY1_LRG+ELG_post_deltaz0.02
+datasets/DESIY1_ELG_pre_deltaz0.02
+datasets/DESIY1_ELG_post_deltaz0.02
 
 **/scripts
 

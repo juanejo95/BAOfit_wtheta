@@ -25,31 +25,31 @@ class RedshiftDistributions:
         self.code_path = code_path
         
         # File paths based on dataset and nz_flag
-        if self.dataset in ["DESY6", "DESY6_dec_below-23.5", "DESY6_dec_above-23.5", "DESY6_DR1tiles_noDESI", "DESY6_DR1tiles_DESIonly"]: # they have the same n(z), but in different paths
-            self.nz_type = "widebin"
-            if self.nz_flag == "fid":
-                file_path = f"{self.code_path}/datasets/{self.dataset}/nz/nz_DNFpdf_shift_stretch_wrtclusteringz1-4_wrtVIPERS5-6_v2.txt"
-                self.z_edges = {
-                    0: [0.6, 0.7], 1: [0.7, 0.8], 2: [0.8, 0.9], 3: [0.9, 1.0], 4: [1.0, 1.1], 5: [1.1, 1.2]
-                }
-            elif nz_flag == "clusteringz":
-                file_path = f"{self.code_path}/datasets/{self.dataset}/nz/nz_clusteringz.txt"
-                self.z_edges = {
-                    0: [0.6, 0.7], 1: [0.7, 0.8], 2: [0.8, 0.9], 3: [0.9, 1.0]
-                }
+        if "DESY6" in self.dataset:
+            self.nz_type = "widebin" # they have their own n(z) inside their corresponding folder
+            if "COLA" in dataset:
+                if self.nz_flag == "mocks":
+                    file_path = f"{self.code_path}/datasets/{self.dataset}/nz/nz_Y6COLA.txt"
+                    self.z_edges = {
+                        0: [0.6, 0.7], 1: [0.7, 0.8], 2: [0.8, 0.9], 3: [0.9, 1.0], 4: [1.0, 1.1], 5: [1.1, 1.2]
+                    }
+                else:
+                    raise ValueError(f"Unknown nz_flag: {self.nz_flag} for dataset: {self.dataset}")
             else:
-                raise ValueError(f"Unknown nz_flag: {self.nz_flag} for dataset: {self.dataset}")
-        elif self.dataset in ["DESY6_COLA", "DESY6_COLA_dec_below-23.5", "DESY6_COLA_dec_above-23.5", "DESY6_COLA_DR1tiles_noDESI", "DESY6_COLA_DR1tiles_DESIonly"]:
-            self.nz_type = "widebin"
-            if self.nz_flag == "mocks":
-                file_path = f"{self.code_path}/datasets/{self.dataset}/nz/nz_Y6COLA.txt"
-                self.z_edges = {
-                    0: [0.6, 0.7], 1: [0.7, 0.8], 2: [0.8, 0.9], 3: [0.9, 1.0], 4: [1.0, 1.1], 5: [1.1, 1.2]
-                }
-            else:
-                raise ValueError(f"Unknown nz_flag: {self.nz_flag} for dataset: {self.dataset}")
-        elif "DESIY1_LRG" in self.dataset:
-            self.nz_type = "thinbin"
+                if self.nz_flag == "fid":
+                    file_path = f"{self.code_path}/datasets/{self.dataset}/nz/nz_DNFpdf_shift_stretch_wrtclusteringz1-4_wrtVIPERS5-6_v2.txt"
+                    self.z_edges = {
+                        0: [0.6, 0.7], 1: [0.7, 0.8], 2: [0.8, 0.9], 3: [0.9, 1.0], 4: [1.0, 1.1], 5: [1.1, 1.2]
+                    }
+                elif nz_flag == "clusteringz":
+                    file_path = f"{self.code_path}/datasets/{self.dataset}/nz/nz_clusteringz.txt"
+                    self.z_edges = {
+                        0: [0.6, 0.7], 1: [0.7, 0.8], 2: [0.8, 0.9], 3: [0.9, 1.0]
+                    }
+                else:
+                    raise ValueError(f"Unknown nz_flag: {self.nz_flag} for dataset: {self.dataset}")
+        elif "DESIY1" in self.dataset:
+            self.nz_type = "thinbin" # the n(z) will be top-hat functions
             if self.nz_flag == "mocks":
                 file_path = f"{self.code_path}/datasets/{self.dataset}/nz/mean_nzs.txt"
         else:
@@ -134,7 +134,7 @@ class RedshiftDistributions:
             raise NotImplementedError(f"No need to implement for dataset {self.dataset}.")
 
 class GetThetaLimits:
-    def __init__(self, dataset, nz_flag, dynamical_theta_limits=False, code_path=None):
+    def __init__(self, dataset, nz_flag, dynamical_theta_limits=False, theta_width=6, code_path=None):
         """
         Initialize the GetThetaLimits class.
 
@@ -142,12 +142,13 @@ class GetThetaLimits:
         - dataset (str): Dataset identifier.
         - nz_flag (str): Identifier for the n(z).
         - dynamical_theta_limits (bool): Whether to use dynamical theta ranges.
+        - theta_width (float): Width in deg around the approximate BAO angular scale used for the dynamical scale cuts.
         - code_path (str): Path to the code.
         """
         self.dataset = dataset
         self.nz_flag = nz_flag
         self.dynamical_theta_limits = dynamical_theta_limits
-        self.theta_width = 6
+        self.theta_width = theta_width
 
         if code_path is None:
             code_path = f"{os.environ['PSCRATCH']}/BAOfit_wtheta"
@@ -202,7 +203,7 @@ class GetThetaLimits:
 
     def get_theta_limits(self):
         """
-        Return the theta limits for all redshift bins. Two dicionaries: theta_min and theta_max.
+        Return the theta limits for all redshift bins. Two dictionaries: theta_min and theta_max.
         """
         if self.dynamical_theta_limits:
             return self._get_dynamical_limits()
@@ -258,77 +259,89 @@ class WThetaDataCovariance:
         indices_theta_allbins = {}
         theta_wtheta_data = {}
         wtheta_data = {}
+
+        if "DESIY1" in self.dataset:
+            theta = (0.5 + (10-0.5)/(2*24) + np.arange(24)*(10-0.5)/24) * np.pi/180 # mean of the theta bins used by Anya
         
         zip_file = f"{self.code_path}/datasets/{self.dataset}/wtheta/wtheta.zip"
         for bin_z in range(self.nbins):
-            if self.dataset == "DESY6":
-                file_in_zip = (f"wtheta_data_bin{bin_z}_DeltaTheta{self.delta_theta}_weights{self.weight_type}_fstar.txt")
-                with zipfile.ZipFile(zip_file, "r") as zf:
-                    with zf.open(file_in_zip) as filename_wtheta:
-                        theta, wtheta = np.loadtxt(filename_wtheta).T
-                        
-            elif self.dataset in ["DESY6_dec_below-23.5", "DESY6_dec_above-23.5", "DESY6_DR1tiles_noDESI", "DESY6_DR1tiles_DESIonly"]:
-                file_in_zip = (f"wtheta_data_bin{bin_z}_DeltaTheta{self.delta_theta}_weights{self.weight_type}.txt")
-                with zipfile.ZipFile(zip_file, "r") as zf:
-                    with zf.open(file_in_zip) as filename_wtheta:
-                        theta, wtheta = np.loadtxt(filename_wtheta).T[:2]
 
-            elif self.dataset in ["DESY6_COLA", "DESY6_COLA_dec_below-23.5", "DESY6_COLA_dec_above-23.5", "DESY6_COLA_DR1tiles_noDESI", "DESY6_COLA_DR1tiles_DESIonly"]:
-                if self.mock_id == "mean":
-                    with zipfile.ZipFile(zip_file, "r") as zf:
-                        # Find all mock files for the given redshift bin
-                        pattern = re.compile(f"wtheta_mock[0-9]+_bin{bin_z}_DeltaTheta{self.delta_theta}.txt")
-                        mock_files = [name for name in zf.namelist() if pattern.match(name)]
-                        
-                        if bin_z == 0:
-                            self.n_mocks = len(mock_files)
-                            print(f"Averaging the w(theta) over {self.n_mocks} mocks!")
-                        
-                        all_wtheta = []
-                        theta = None
-
-                        for mock_file in mock_files:
-                            with zf.open(mock_file) as file:
-                                theta_mock, wtheta_mock = np.loadtxt(file).T
-                                if theta is None:
-                                    theta = theta_mock
-                                elif not np.array_equal(theta, theta_mock):
-                                    raise ValueError("Theta arrays are inconsistent across mock files.")
-                                all_wtheta.append(wtheta_mock)
-
-                        wtheta = np.mean(all_wtheta, axis=0)
-
-                else:
-                    file_in_zip = f"wtheta_mock{self.mock_id}_bin{bin_z}_DeltaTheta{self.delta_theta}.txt"
-                    with zipfile.ZipFile(zip_file, "r") as zf:
-                        with zf.open(file_in_zip) as filename_wtheta:
-                            theta, wtheta = np.loadtxt(filename_wtheta).T
+            if any(substr in self.dataset for substr in ["COLA", "EZ", "Abacus"]):
+                if "COLA" in self.dataset:
+                    if self.mock_id == "mean":
+                        with zipfile.ZipFile(zip_file, "r") as zf:
+                            # Find all mock files for the given redshift bin
+                            pattern = re.compile(f"wtheta_mock[0-9]+_bin{bin_z}_DeltaTheta{self.delta_theta}.txt")
+                            mock_files = [name for name in zf.namelist() if pattern.match(name)]
                             
-            elif "DESIY1_LRG" in self.dataset:
-                theta = (0.5 + (10-0.5)/(2*24) + np.arange(24)*(10-0.5)/24) * np.pi/180 # mean of the theta bins used by Anya
-                if self.mock_id == "mean":
-                    with zipfile.ZipFile(zip_file, "r") as zf:
-                        pattern = re.compile(r"twoangcorr_mock_\d+\.npz")
-                        mock_files = [name for name in zf.namelist() if pattern.match(name)]
-            
-                        if bin_z == 0:
-                            self.n_mocks = len(mock_files)
-                            print(f"Averaging the w(theta) over {self.n_mocks} mocks!")
-            
-                        all_wtheta = []
-            
-                        for mock_file in mock_files:
-                            with zf.open(mock_file) as file:
-                                npz_data = np.load(file)
-            
-                                wtheta_mock = npz_data.get(f"z{bin_z}")
-            
-                                all_wtheta.append(wtheta_mock)
+                            if bin_z == 0:
+                                self.n_mocks = len(mock_files)
+                                print(f"Averaging the w(theta) over {self.n_mocks} mocks!")
+                            
+                            all_wtheta = []
+                            theta = None
+    
+                            for mock_file in mock_files:
+                                with zf.open(mock_file) as file:
+                                    theta_mock, wtheta_mock = np.loadtxt(file).T
+                                    if theta is None:
+                                        theta = theta_mock
+                                    elif not np.array_equal(theta, theta_mock):
+                                        raise ValueError("Theta arrays are inconsistent across mock files.")
+                                    all_wtheta.append(wtheta_mock)
+    
+                            wtheta = np.mean(all_wtheta, axis=0)
+    
+                    else:
+                        file_in_zip = f"wtheta_mock{self.mock_id}_bin{bin_z}_DeltaTheta{self.delta_theta}.txt"
+                        with zipfile.ZipFile(zip_file, "r") as zf:
+                            with zf.open(file_in_zip) as filename_wtheta:
+                                theta, wtheta = np.loadtxt(filename_wtheta).T
+                elif "EZ" in self.dataset or "Abacus" in self.dataset:
+                    if self.mock_id == "mean":
+                        with zipfile.ZipFile(zip_file, "r") as zf:
+                            pattern = re.compile(r"twoangcorr_mock_\d+\.npz")
+                            mock_files = [name for name in zf.namelist() if pattern.match(name)]
+                
+                            if bin_z == 0:
+                                self.n_mocks = len(mock_files)
+                                print(f"Averaging the w(theta) over {self.n_mocks} mocks!")
+                
+                            all_wtheta = []
+                
+                            for mock_file in mock_files:
+                                with zf.open(mock_file) as file:
+                                    npz_data = np.load(file)
+                
+                                    wtheta_mock = npz_data.get(f"z{bin_z}")
+                
+                                    all_wtheta.append(wtheta_mock)
+                                    
+                            wtheta = np.mean(all_wtheta, axis=0)
+                
+                    else:
+                        file_in_zip = f"twoangcorr_mock_{self.mock_id}.npz"
+                        with zipfile.ZipFile(zip_file, "r") as zf:
+                            with zf.open(file_in_zip) as filename_wtheta:
+                                npz_data = np.load(filename_wtheta)
+                
+                                wtheta = npz_data.get(f"z{bin_z}")
+                    
+            else:
+                if "DESY6" in self.dataset:
+                    if self.dataset == "DESY6":
+                        file_in_zip = (f"wtheta_data_bin{bin_z}_DeltaTheta{self.delta_theta}_weights{self.weight_type}_fstar.txt")
+                        with zipfile.ZipFile(zip_file, "r") as zf:
+                            with zf.open(file_in_zip) as filename_wtheta:
+                                theta, wtheta = np.loadtxt(filename_wtheta).T
                                 
-                        wtheta = np.mean(all_wtheta, axis=0)
-            
-                else:
-                    file_in_zip = f"twoangcorr_mock_{self.mock_id}.npz"
+                    else: # no fstar correction
+                        file_in_zip = (f"wtheta_data_bin{bin_z}_DeltaTheta{self.delta_theta}_weights{self.weight_type}.txt")
+                        with zipfile.ZipFile(zip_file, "r") as zf:
+                            with zf.open(file_in_zip) as filename_wtheta:
+                                theta, wtheta = np.loadtxt(filename_wtheta).T[:2] # these files include DD, DR, RR since they were not post-processed with fstar
+                elif "DESIY1" in self.dataset:
+                    file_in_zip = f"twoangcorr_mock_0.npz"
             
                     with zipfile.ZipFile(zip_file, "r") as zf:
                         with zf.open(file_in_zip) as filename_wtheta:
@@ -365,42 +378,43 @@ class WThetaDataCovariance:
 
         path_cov = f"{self.code_path}/datasets/{self.dataset}/cov_{self.cov_type}"
 
-        if self.dataset in ["DESY6", "DESY6_dec_below-23.5", "DESY6_dec_above-23.5", "DESY6_DR1tiles_noDESI", "DESY6_DR1tiles_DESIonly"]:
-            if self.cov_type == "cosmolike":
-                for bin_z in range(self.nbins):
-                    theta_cov[bin_z] = np.loadtxt(f"{path_cov}/delta_theta_{self.delta_theta}_binning.txt")[:, 2] * np.pi / 180 # same for all of them!
-                cov = np.loadtxt(
-                    f"{path_cov}/cov_Y6bao_data_DeltaTheta{str(self.delta_theta).replace('.', 'p')}_mask_g_{self.cosmology_covariance}.txt"
-                )
-            elif self.cov_type == "mocks":
-                for bin_z in range(self.nbins):
-                    theta_cov[bin_z] = np.loadtxt(f"{path_cov}/theta_DeltaTheta{self.delta_theta}.txt") # same for all of them!
-                cov = np.loadtxt(
-                    f"{path_cov}/cov_COLA_DeltaTheta{self.delta_theta}.txt"
-                )
-            else:
-                raise NotImplementedError("Such covariance does not exist.")
-
-        elif self.dataset in ["DESY6_COLA", "DESY6_COLA_dec_below-23.5", "DESY6_COLA_dec_above-23.5", "DESY6_COLA_DR1tiles_noDESI", "DESY6_COLA_DR1tiles_DESIonly"]:
-            if self.cov_type == "cosmolike":
-                if self.cosmology_covariance == "mice":
+        if "DESY6" in self.dataset:
+            if "COLA" in self.dataset:
+                if self.cov_type == "cosmolike":
+                    if self.cosmology_covariance == "mice":
+                        for bin_z in range(self.nbins):
+                            theta_cov[bin_z] = np.loadtxt(f"{path_cov}/delta_theta_{self.delta_theta}_binning.txt")[:, 2] * np.pi / 180 # same for all of them!
+                        cov = np.loadtxt(
+                            f"{path_cov}/cov_Y6bao_cola_deltatheta{str(self.delta_theta).replace('.', 'p')}_mask_g_area2_biasv2.txt"
+                        )
+                    else:
+                        raise NotImplementedError("Such covariance does not exist.")
+                elif self.cov_type == "mocks":
                     for bin_z in range(self.nbins):
-                        theta_cov[bin_z] = np.loadtxt(f"{path_cov}/delta_theta_{self.delta_theta}_binning.txt")[:, 2] * np.pi / 180 # same for all of them!
+                        theta_cov[bin_z] = np.loadtxt(f"{path_cov}/theta_DeltaTheta{self.delta_theta}.txt") # same for all of them!
                     cov = np.loadtxt(
-                        f"{path_cov}/cov_Y6bao_cola_deltatheta{str(self.delta_theta).replace('.', 'p')}_mask_g_area2_biasv2.txt"
+                        f"{path_cov}/cov_COLA_DeltaTheta{self.delta_theta}.txt"
                     )
                 else:
                     raise NotImplementedError("Such covariance does not exist.")
-            elif self.cov_type == "mocks":
-                for bin_z in range(self.nbins):
-                    theta_cov[bin_z] = np.loadtxt(f"{path_cov}/theta_DeltaTheta{self.delta_theta}.txt") # same for all of them!
-                cov = np.loadtxt(
-                    f"{path_cov}/cov_COLA_DeltaTheta{self.delta_theta}.txt"
-                )
-            else:
-                raise NotImplementedError("Such covariance does not exist.")
 
-        if "DESIY1_LRG" in self.dataset:
+            else:
+                if self.cov_type == "cosmolike":
+                    for bin_z in range(self.nbins):
+                        theta_cov[bin_z] = np.loadtxt(f"{path_cov}/delta_theta_{self.delta_theta}_binning.txt")[:, 2] * np.pi / 180 # same for all of them!
+                    cov = np.loadtxt(
+                        f"{path_cov}/cov_Y6bao_data_DeltaTheta{str(self.delta_theta).replace('.', 'p')}_mask_g_{self.cosmology_covariance}.txt"
+                    )
+                elif self.cov_type == "mocks":
+                    for bin_z in range(self.nbins):
+                        theta_cov[bin_z] = np.loadtxt(f"{path_cov}/theta_DeltaTheta{self.delta_theta}.txt") # same for all of them!
+                    cov = np.loadtxt(
+                        f"{path_cov}/cov_COLA_DeltaTheta{self.delta_theta}.txt"
+                    )
+                else:
+                    raise NotImplementedError("Such covariance does not exist.")
+
+        if "DESIY1" in self.dataset:
             theta = (0.5 + (10-0.5)/(2*24) + np.arange(24)*(10-0.5)/24) * np.pi/180 # mean of the theta bins used by Anya
             if self.cov_type == "mocks":
                 for bin_z in range(self.nbins):
@@ -453,15 +467,14 @@ class WThetaDataCovariance:
         print(f"Length of data vector (calculated from the covariance): {len_datavector}")
         
         if self.cov_type == "mocks":
-            if "DESIY1_LRG" in self.dataset:
+            if "DESIY1" in self.dataset:
                 hartlap = (1000 - len_datavector - 2) / (1000 - 1) # it's always 1000 since it's the number of EZ mocks
             elif "DESY6" in self.dataset:
                 hartlap = (1952 - len_datavector - 2) / (1952 - 1)
             cov_cut /= hartlap
             print(f"Applying the Hartlap correction to the covariance matrix from the mocks (cov -> cov/{hartlap})")
             
-            # if "DESIY1_LRG" in self.dataset:
-            if "DESIY1_LRG_Abacus" in self.dataset: # only used for the Abacus
+            if "Abacus" in self.dataset: # only used for the Abacus
                 if hasattr(self, 'n_mocks'): # if it exists then it means we have averaged the w(theta) over n_mocks and then we need to re-scale the covariance matrix
                     cov_cut /= self.n_mocks
                     print(f"Re-scaling the covariance matrix to fit the mean of the mocks (cov -> cov/{self.n_mocks})")

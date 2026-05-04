@@ -13,7 +13,7 @@ plt.rcParams["font.serif"] = "Times New Roman"
 from utils_template import TemplateInitializer
 
 class WThetaModelGalaxyBias:
-    def __init__(self, include_wiggles, dataset, nz_flag, cosmology_template, save_path=None):
+    def __init__(self, include_wiggles, dataset, nz_flag, cosmology_template, code_path=None, save_path=None):
         """
         Initialize the WThetaModelGalaxyBias class.
 
@@ -29,6 +29,10 @@ class WThetaModelGalaxyBias:
         self.nz_flag = nz_flag
         self.cosmology_template = cosmology_template
 
+        if code_path is None:
+            code_path = f"{os.environ['PSCRATCH']}/BAOfit_wtheta"
+        self.code_path = code_path
+
         if save_path is None:
             save_path = f"{os.environ['PSCRATCH']}/BAOfit_wtheta"
         self.save_path = save_path
@@ -40,6 +44,7 @@ class WThetaModelGalaxyBias:
             nz_flag=self.nz_flag,
             cosmology_template=self.cosmology_template,
             verbose=False,
+            code_path=self.code_path,
             save_path=self.save_path,
         )
         self.nbins = self.template_initializer.nbins
@@ -85,7 +90,7 @@ class WThetaModelGalaxyBias:
         return wtheta
 
 class WThetaModelBAO:
-    def __init__(self, include_wiggles, dataset, nz_flag, cosmology_template, pow_broadband, galaxy_bias, save_path=None):
+    def __init__(self, include_wiggles, dataset, nz_flag, cosmology_template, pow_broadband, galaxy_bias, alpha_type="alpha_wigg_only", code_path=None, save_path=None):
         """
         Initialize the WThetaModelBAO class.
 
@@ -96,6 +101,7 @@ class WThetaModelBAO:
         - cosmology_template (str): Cosmology for the template.
         - pow_broadband (list): Powers of theta for the broadband parameters.
         - galaxy_bias (dict): Dictionary containing the linear galaxy bias for each redshift bin.
+        - alpha_type (str): Either "alpha_wigg_only" (default: alpha only affects the wiggle part of the template) or "alpha_wigg_nowigg" (old choice: alpha enters in both the wiggle and the no-wiggle parts of the template).
         - save_path (str): Path where outputs are saved.
         """
         self.include_wiggles = include_wiggles
@@ -104,24 +110,59 @@ class WThetaModelBAO:
         self.cosmology_template = cosmology_template
         self.pow_broadband = sorted(pow_broadband)
         self.galaxy_bias = galaxy_bias
+        self.alpha_type = alpha_type
 
         self.n_broadband = len(self.pow_broadband)
+
+        if code_path is None:
+            code_path = f"{os.environ['PSCRATCH']}/BAOfit_wtheta"
+        self.code_path = code_path
         
         if save_path is None:
             save_path = f"{os.environ['PSCRATCH']}/BAOfit_wtheta"
         self.save_path = save_path
-        
-        self.template_initializer = TemplateInitializer(
-            include_wiggles=self.include_wiggles,
-            dataset=self.dataset,
-            nz_flag=self.nz_flag,
-            cosmology_template=self.cosmology_template,
-            verbose=False,
-            save_path=self.save_path,
-        )
-        self.nbins = self.template_initializer.nbins
-        self.z_edges = self.template_initializer.z_edges
 
+        if self.alpha_type == "alpha_wigg_only": # default
+            # Initializer of the no-wiggle template (always needed)
+            self.template_initializer_nowigg = TemplateInitializer(
+                include_wiggles="_nowiggles",
+                dataset=self.dataset,
+                nz_flag=self.nz_flag,
+                cosmology_template=self.cosmology_template,
+                verbose=False,
+                code_path=self.code_path,
+                save_path=self.save_path,
+            )
+            
+            if self.include_wiggles == "":
+                # Initializer of the wiggle template (only if needed)
+                self.template_initializer_wigg = TemplateInitializer(
+                    include_wiggles=self.include_wiggles,
+                    dataset=self.dataset,
+                    nz_flag=self.nz_flag,
+                    cosmology_template=self.cosmology_template,
+                    verbose=False,
+                    code_path=self.code_path,
+                    save_path=self.save_path,
+                )
+
+            self.nbins = self.template_initializer_nowigg.nbins
+            self.z_edges = self.template_initializer_nowigg.z_edges
+
+        elif self.alpha_type == "alpha_wigg_nowigg": # old choice
+            self.template_initializer = TemplateInitializer(
+                include_wiggles=self.include_wiggles,
+                dataset=self.dataset,
+                nz_flag=self.nz_flag,
+                cosmology_template=self.cosmology_template,
+                verbose=False,
+                code_path=self.code_path,
+                save_path=self.save_path,
+            )
+
+            self.nbins = self.template_initializer.nbins
+            self.z_edges = self.template_initializer.z_edges
+        
         params = ["alpha"]
         for bin_z in range(self.nbins):
             params.extend([f"A_{bin_z}"]) # amplitude parameter
@@ -136,31 +177,55 @@ class WThetaModelBAO:
         self.n_params_max = len(self.names_params)
 
         # Interpolation of the theoretical wtheta
-        self.wtheta_th_interp = self._load_and_interpolate_wtheta_th()
+        if self.alpha_type == "alpha_wigg_only":
+            self.wtheta_wigg_th_interp, self.wtheta_nowigg_th_interp = self._load_and_interpolate_wtheta_th()
+        elif self.alpha_type == "alpha_wigg_nowigg":
+            self.wtheta_th_interp = self._load_and_interpolate_wtheta_th()
 
     def _load_and_interpolate_wtheta_th(self):
         """
         Load the different components of the theoretical w(theta) (bb, bf, ff), combine them and interpolate.
         """
-        wtheta_th_interp = {}
-        for bin_z in range(self.nbins):
-            # Load the theoretical wtheta for each bin
-            wtheta_dict = self.template_initializer.load_wtheta(bin_z)
-            theta = wtheta_dict["bb"][:, 0]
-            wtheta_bb = wtheta_dict["bb"][:, 1]
-            wtheta_bf = wtheta_dict["bf"][:, 1]
-            wtheta_ff = wtheta_dict["ff"][:, 1]
 
-            # Combine these into the final wtheta model for the bin
-            wtheta_combined = (
-                self.galaxy_bias[bin_z]**2 * wtheta_bb + 
-                self.galaxy_bias[bin_z] * wtheta_bf + 
-                wtheta_ff
-            )
+        if self.alpha_type == "alpha_wigg_only":
+            wtheta_th_wigg_interp = {}
+            wtheta_th_nowigg_interp = {}
+            for bin_z in range(self.nbins):
+                # No-wiggle (always needed)
+                wtheta_dict_nowigg = self.template_initializer_nowigg.load_wtheta(bin_z)
+                theta = wtheta_dict_nowigg["bb"][:, 0]
+                wtheta_nowigg = (
+                    self.galaxy_bias[bin_z]**2 * wtheta_dict_nowigg["bb"][:, 1] +
+                    self.galaxy_bias[bin_z] * wtheta_dict_nowigg["bf"][:, 1] +
+                    wtheta_dict_nowigg["ff"][:, 1]
+                )
+                wtheta_th_nowigg_interp[bin_z] = interp1d(theta, wtheta_nowigg, kind="cubic")
+        
+                # Wiggle (only if needed)
+                if self.include_wiggles == "":
+                    wtheta_dict_wigg = self.template_initializer_wigg.load_wtheta(bin_z)
+                    wtheta_wigg = (
+                        self.galaxy_bias[bin_z]**2 * wtheta_dict_wigg["bb"][:, 1] +
+                        self.galaxy_bias[bin_z] * wtheta_dict_wigg["bf"][:, 1] +
+                        wtheta_dict_wigg["ff"][:, 1]
+                    )
+                    wtheta_th_wigg_interp[bin_z] = interp1d(theta, wtheta_wigg, kind="cubic")
+        
+            return wtheta_th_wigg_interp if wtheta_th_wigg_interp else None, wtheta_th_nowigg_interp
             
-            # Interpolate the combined wtheta
-            wtheta_th_interp[bin_z] = interp1d(theta, wtheta_combined, kind="cubic")
-        return wtheta_th_interp
+        elif self.alpha_type == "alpha_wigg_nowigg":
+            wtheta_th_interp = {}
+            for bin_z in range(self.nbins):
+                wtheta_dict = self.template_initializer.load_wtheta(bin_z)
+                theta = wtheta_dict["bb"][:, 0]
+                wtheta_combined = (
+                    self.galaxy_bias[bin_z]**2 * wtheta_dict["bb"][:, 1] + 
+                    self.galaxy_bias[bin_z] * wtheta_dict["bf"][:, 1] + 
+                    wtheta_dict["ff"][:, 1]
+                )
+                wtheta_th_interp[bin_z] = interp1d(theta, wtheta_combined, kind="cubic")
+                
+            return wtheta_th_interp
 
     def get_wtheta_model(self):
         """
@@ -170,12 +235,26 @@ class WThetaModelBAO:
             wtheta = []
             for bin_z in range(self.nbins):
                 idx = (1 + self.n_broadband) * bin_z
+
+                if self.alpha_type == "alpha_wigg_only":
+                    # Wiggle contribution
+                    if self.include_wiggles == "":
+                        wiggle_part = (
+                            self.wtheta_wigg_th_interp[bin_z](alpha * theta[bin_z])
+                            - self.wtheta_nowigg_th_interp[bin_z](alpha * theta[bin_z])
+                        )
+                    else:
+                        wiggle_part = 0
+        
+                    # No-wiggle contribution
+                    nowiggle_part = self.wtheta_nowigg_th_interp[bin_z](theta[bin_z])
+        
+                    base = params[idx] * (nowiggle_part + wiggle_part)
+                    
+                elif self.alpha_type == "alpha_wigg_nowigg":
+                    base = params[idx] * self.wtheta_th_interp[bin_z](alpha * theta[bin_z])
     
-                base = (
-                    params[idx]
-                    * self.wtheta_th_interp[bin_z](alpha * theta[bin_z])
-                )
-    
+                # Broadband
                 broadband = sum(
                     params[idx + i + 1] * theta[bin_z] ** pb
                     for i, pb in enumerate(self.pow_broadband)
@@ -189,7 +268,7 @@ class WThetaModelBAO:
 class BAOFitInitializer:
     def __init__(self, include_wiggles, dataset, weight_type, mock_id, nz_flag, cov_type, cosmology_template,
                  cosmology_covariance, delta_theta, theta_min, theta_max, pow_broadband, bins_removed, 
-                 alpha_min=0.8, alpha_max=1.2, verbose=True, save_path=None):
+                 alpha_min=0.8, alpha_max=1.2, alpha_type="alpha_wigg_only", verbose=True, save_path=None):
         """
         Initializes the BAOFitInitializer class.
         Parameters:
@@ -206,6 +285,9 @@ class BAOFitInitializer:
         - theta_max (dict): Maximum theta value for each redshift bin.
         - pow_broadband (list): Powers of theta for the broadband parameters.
         - bins_removed (list): Redshift bins removed when running the BAO fit.
+        - alpha_min (float): Minimum alpha allowed for the BAO fit.
+        - alpha_max (float): Maximum alpha allowed for the BAO fit.
+        - alpha_type (str): Either "alpha_wigg_only" (default: alpha only affects the wiggle part of the template) or "alpha_wigg_nowigg" (old choice: alpha enters in both the wiggle and the no-wiggle parts of the template).
         - verbose (bool): Whether to print messages.
         - save_path (str): Path where outputs are saved.
         """
@@ -222,10 +304,11 @@ class BAOFitInitializer:
         self.theta_max = theta_max
         self.pow_broadband = sorted(pow_broadband)
         self.bins_removed = sorted(bins_removed)
-        self.verbose = verbose
         self.alpha_min = alpha_min
         self.alpha_max = alpha_max
+        self.alpha_type = alpha_type
         self.Nalpha = 10**3
+        self.verbose = verbose
 
         self.n_broadband = len(self.pow_broadband)
 
@@ -244,7 +327,7 @@ class BAOFitInitializer:
         # Save or verify configuration
         self._check_or_save_config()
 
-        if verbose:
+        if self.verbose:
             print(f"Saving output to: {self.path_baofit}")
 
     def _build_config_dict(self):
@@ -304,12 +387,15 @@ class BAOFitInitializer:
         """
         Generate the path to save the BAO fit results.
         """
-        if self.dataset in ["DESY6", "DESY6_dec_below-23.5", "DESY6_dec_above-23.5", "DESY6_DR1tiles_noDESI", "DESY6_DR1tiles_DESIonly"]:
-            path = f"{self.save_path}/results/{self.dataset}/fit_results{self.include_wiggles}/weight_{self.weight_type}/{self.hash_path}"
-        elif any(substr in self.dataset for substr in ["COLA", "EZ", "Abacus"]):
-            path = f"{self.save_path}/results/{self.dataset}/fit_results{self.include_wiggles}/mock_{self.mock_id}/{self.hash_path}"
+        if any(substr in self.dataset for substr in ["COLA", "EZ", "Abacus"]):
+            path = f"{self.save_path}/results/{self.dataset}/{self.alpha_type}/fit_results{self.include_wiggles}/mock_{self.mock_id}/{self.hash_path}"
         else:
-            raise ValueError(f"Unsupported dataset: {self.dataset}")
+            if "DESY6" in self.dataset:
+                path = f"{self.save_path}/results/{self.dataset}/{self.alpha_type}/fit_results{self.include_wiggles}/weight_{self.weight_type}/{self.hash_path}"
+            elif "DESIY1" in self.dataset:
+                path = f"{self.save_path}/results/{self.dataset}/{self.alpha_type}/fit_results{self.include_wiggles}/{self.hash_path}"
+            else:
+                raise ValueError(f"Unsupported dataset: {self.dataset}")
         return path
 
     def get_path_baofit(self):
@@ -335,6 +421,7 @@ class BAOFit:
         - overwrite (bool): Whether to overwrite existing results.
         """
         self.wtheta_model = wtheta_model
+        self.include_wiggles = wtheta_model.include_wiggles
         self.z_edges = wtheta_model.z_edges
         self.theta_data = theta_data
         self.wtheta_data = wtheta_data
@@ -356,6 +443,7 @@ class BAOFit:
         self.alpha_min = baofit_initializer.alpha_min
         self.alpha_max = baofit_initializer.alpha_max
         self.Nalpha = baofit_initializer.Nalpha
+        self.alpha_type = baofit_initializer.alpha_type
 
         # Concatenate wtheta data
         self.wtheta_data_concatenated = np.concatenate([self.wtheta_data[bin_z] for bin_z in range(self.nbins)])
@@ -500,12 +588,25 @@ class BAOFit:
                             label=fr"\texttt{{{self.dataset}}}",
                             zorder=-1000
                         )
-                        ax.plot(
-                            theta_data_interp[bin_z] * 180 / np.pi, 
-                            100 * (theta_data_interp[bin_z] * 180 / np.pi) ** 2 * self.wtheta_model.wtheta_th_interp[bin_z](theta_data_interp[bin_z]),
-                            color="red", linestyle="--",
-                            label="template"
-                        )
+                        if self.alpha_type == "alpha_wigg_only":
+                            ax.plot(
+                                theta_data_interp[bin_z] * 180 / np.pi,
+                                100 * (theta_data_interp[bin_z] * 180 / np.pi) ** 2 *
+                                (
+                                    self.wtheta_model.wtheta_wigg_th_interp[bin_z](theta_data_interp[bin_z])
+                                    if self.include_wiggles == ""
+                                    else self.wtheta_model.wtheta_nowigg_th_interp[bin_z](theta_data_interp[bin_z]) # actually the no-wiggle case will never be plotted because the script will never reach this point
+                                ),
+                                color="red", linestyle="--",
+                                label="template"
+                            )
+                        elif self.alpha_type == "alpha_wigg_nowigg":
+                            ax.plot(
+                                theta_data_interp[bin_z] * 180 / np.pi, 
+                                100 * (theta_data_interp[bin_z] * 180 / np.pi) ** 2 * self.wtheta_model.wtheta_th_interp[bin_z](theta_data_interp[bin_z]),
+                                color="red", linestyle="--",
+                                label="template"
+                            )
                         ax.plot(
                             theta_data_interp[bin_z] * 180 / np.pi, 
                             100 * (theta_data_interp[bin_z] * 180 / np.pi) ** 2 * wtheta_fit_best[sum(len(theta_data_interp[bin_z2]) for bin_z2 in range(bin_z)):sum(len(theta_data_interp[bin_z2]) for bin_z2 in range(bin_z + 1))],
@@ -516,7 +617,7 @@ class BAOFit:
                         ax.tick_params(axis="x", labelsize=18)
                         ax.tick_params(axis="y", labelsize=18)
                         z_edge = self.z_edges[bin_z]
-                        if "DESIY1_LRG" in self.dataset:
+                        if "DESIY1" in self.dataset:
                             ax.text(0.13, 0.1, f"{z_edge[0]:.2f} $< z <$ {z_edge[1]:.2f}", ha="center", va="center", transform=ax.transAxes, fontsize=18)
                         else:
                             ax.text(0.13, 0.1, f"{z_edge[0]} $< z <$ {z_edge[1]}", ha="center", va="center", transform=ax.transAxes, fontsize=18)
