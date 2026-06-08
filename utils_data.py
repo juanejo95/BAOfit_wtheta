@@ -181,9 +181,14 @@ class GetThetaLimits:
         for bin_z in range(self.nbins):
             z_low, z_high = self.redshift_distributions.z_edges[bin_z]
             zeff = 0.5 * (z_low + z_high)
-            theta_bao = self._angular_bao_scale_deg(zeff, cosmo) + (zeff - 0.4)
+            if zeff < 1.4:
+                theta_bao = self._angular_bao_scale_deg(zeff, cosmo) + (zeff - 0.4)
+            else:
+                theta_bao = self._angular_bao_scale_deg(zeff, cosmo) + 1
+            # theta_bao = self._angular_bao_scale_deg(zeff, cosmo)
             theta_min[bin_z] = theta_bao - self.theta_width / 2
             theta_max[bin_z] = theta_bao + self.theta_width / 2
+            # print([z_low, z_high, zeff, theta_bao])
         return theta_min, theta_max
 
     def _get_constant_limits(self):
@@ -261,7 +266,10 @@ class WThetaDataCovariance:
         wtheta_data = {}
 
         if "DESIY1" in self.dataset:
-            theta = (0.5 + (10-0.5)/(2*24) + np.arange(24)*(10-0.5)/24) * np.pi/180 # mean of the theta bins used by Anya
+            if "QSO" in self.dataset or "ELG2" in self.dataset:
+                theta = (0.5 + (5-0.5)/(2*30) + np.arange(30)*(5-0.5)/30) * np.pi/180 # mean of the theta bins used by Anya
+            else:
+                theta = (0.5 + (10-0.5)/(2*24) + np.arange(24)*(10-0.5)/24) * np.pi/180 # mean of the theta bins used by Anya
         
         zip_file = f"{self.code_path}/datasets/{self.dataset}/wtheta/wtheta.zip"
         for bin_z in range(self.nbins):
@@ -414,8 +422,11 @@ class WThetaDataCovariance:
                 else:
                     raise NotImplementedError("Such covariance does not exist.")
 
-        if "DESIY1" in self.dataset:
-            theta = (0.5 + (10-0.5)/(2*24) + np.arange(24)*(10-0.5)/24) * np.pi/180 # mean of the theta bins used by Anya
+        elif "DESIY1" in self.dataset:
+            if "QSO" in self.dataset or "ELG2" in self.dataset:
+                theta = (0.5 + (5-0.5)/(2*30) + np.arange(30)*(5-0.5)/30) * np.pi/180 # mean of the theta bins used by Anya
+            else:
+                theta = (0.5 + (10-0.5)/(2*24) + np.arange(24)*(10-0.5)/24) * np.pi/180 # mean of the theta bins used by Anya
             if self.cov_type == "mocks":
                 for bin_z in range(self.nbins):
                     theta_cov[bin_z] = theta
@@ -423,7 +434,7 @@ class WThetaDataCovariance:
             else:
                 raise NotImplementedError("Such covariance does not exist.")
 
-        # Let's create a covariance matrix that's basically the original (all theta elements included) but removing the cross-covariances 
+        # Let's create a covariance matrix that's basically the original (all theta elements included), but removing the cross-covariances 
         # of all bins in self.bins_removed with every other bin.
         cov_adjusted = np.zeros_like(cov)
         for bin_z1 in range(self.nbins):
