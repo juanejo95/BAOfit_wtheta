@@ -17,14 +17,21 @@ datasets/DESY6_COLA_DR1tiles_DESIonly/wtheta/wtheta.zip
 
 datasets/DESIY1_LRG_EZ_ffa_pre_deltaz0.02
 datasets/DESIY1_LRG_EZ_ffa_post_deltaz0.02
-datasets/DESIY1_LRG_Abacus_altmtl_pre_deltaz0.02
-datasets/DESIY1_LRG_Abacus_altmtl_post_deltaz0.02
-
 datasets/DESIY1_LRG+ELG_EZ_ffa_pre_deltaz0.02
 datasets/DESIY1_LRG+ELG_EZ_ffa_post_deltaz0.02
-
 datasets/DESIY1_ELG_EZ_ffa_pre_deltaz0.02
 datasets/DESIY1_ELG_EZ_ffa_post_deltaz0.02
+datasets/DESIY1_ELG2_EZ_ffa_pre_deltaz0.05
+datasets/DESIY1_ELG2_EZ_ffa_post_deltaz0.05
+datasets/DESIY1_QSO_EZ_ffa_pre_deltaz0.05
+datasets/DESIY1_QSO_EZ_ffa_post_deltaz0.05
+
+datasets/DESIY1_LRG_Abacus_altmtl_pre_deltaz0.02
+datasets/DESIY1_LRG_Abacus_altmtl_post_deltaz0.02
+datasets/DESIY1_ELG2_Abacus_altmtl_pre_deltaz0.05
+datasets/DESIY1_ELG2_Abacus_altmtl_post_deltaz0.05
+datasets/DESIY1_QSO_Abacus_altmtl_pre_deltaz0.05
+datasets/DESIY1_QSO_Abacus_altmtl_post_deltaz0.05
 
 datasets/DESIY1_LRG_pre_deltaz0.02
 datasets/DESIY1_LRG_post_deltaz0.02
@@ -32,6 +39,10 @@ datasets/DESIY1_LRG+ELG_pre_deltaz0.02
 datasets/DESIY1_LRG+ELG_post_deltaz0.02
 datasets/DESIY1_ELG_pre_deltaz0.02
 datasets/DESIY1_ELG_post_deltaz0.02
+datasets/DESIY1_ELG2_pre_deltaz0.05
+datasets/DESIY1_ELG2_post_deltaz0.05
+datasets/DESIY1_QSO_pre_deltaz0.05
+datasets/DESIY1_QSO_post_deltaz0.05
 
 **/scripts
 
