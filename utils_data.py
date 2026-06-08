@@ -266,7 +266,7 @@ class WThetaDataCovariance:
         wtheta_data = {}
 
         if "DESIY1" in self.dataset:
-            if "QSO" in self.dataset or "ELG2" in self.dataset:
+            if "ELG2" in self.dataset or "QSO" in self.dataset:
                 theta = (0.5 + (5-0.5)/(2*30) + np.arange(30)*(5-0.5)/30) * np.pi/180 # mean of the theta bins used by Anya
             else:
                 theta = (0.5 + (10-0.5)/(2*24) + np.arange(24)*(10-0.5)/24) * np.pi/180 # mean of the theta bins used by Anya
@@ -423,7 +423,7 @@ class WThetaDataCovariance:
                     raise NotImplementedError("Such covariance does not exist.")
 
         elif "DESIY1" in self.dataset:
-            if "QSO" in self.dataset or "ELG2" in self.dataset:
+            if "ELG2" in self.dataset or "QSO" in self.dataset:
                 theta = (0.5 + (5-0.5)/(2*30) + np.arange(30)*(5-0.5)/30) * np.pi/180 # mean of the theta bins used by Anya
             else:
                 theta = (0.5 + (10-0.5)/(2*24) + np.arange(24)*(10-0.5)/24) * np.pi/180 # mean of the theta bins used by Anya
