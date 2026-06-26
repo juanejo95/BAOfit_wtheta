@@ -45,6 +45,7 @@ datasets/DESIY1_QSO_pre_deltaz0.05
 datasets/DESIY1_QSO_post_deltaz0.05
 
 **/scripts
+**/notebooks_
 
 copy_templates_DESY6.sh
 copy_templates_DESY6_COLA.sh
