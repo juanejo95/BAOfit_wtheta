@@ -162,9 +162,9 @@ class GetThetaLimits:
         """
         Get the angular BAO scale for a given redshift and some cosmological parameters.
         """
-        rd_mpc = cosmo.rs_drag / cosmo.h
-        DA = cosmo.comoving_angular_distance(z)
-        theta_rad = rd_mpc / ((1 + z) * DA)
+        rd_mpc = cosmo.rs_drag
+        D_M = cosmo.comoving_angular_distance(z)
+        theta_rad = rd_mpc / D_M
         return np.degrees(theta_rad)
 
     def _get_dynamical_limits(self):
@@ -181,14 +181,13 @@ class GetThetaLimits:
         for bin_z in range(self.nbins):
             z_low, z_high = self.redshift_distributions.z_edges[bin_z]
             zeff = 0.5 * (z_low + z_high)
-            if zeff < 1.4:
-                theta_bao = self._angular_bao_scale_deg(zeff, cosmo) + (zeff - 0.4)
-            else:
-                theta_bao = self._angular_bao_scale_deg(zeff, cosmo) + 1
-            # theta_bao = self._angular_bao_scale_deg(zeff, cosmo)
+            # if zeff < 1.4:
+            #     theta_bao = self._angular_bao_scale_deg(zeff, cosmo) + (zeff - 0.4)
+            # else:
+            #     theta_bao = self._angular_bao_scale_deg(zeff, cosmo) + 1
+            theta_bao = self._angular_bao_scale_deg(zeff, cosmo)
             theta_min[bin_z] = theta_bao - self.theta_width / 2
             theta_max[bin_z] = theta_bao + self.theta_width / 2
-            # print([z_low, z_high, zeff, theta_bao])
         return theta_min, theta_max
 
     def _get_constant_limits(self):
