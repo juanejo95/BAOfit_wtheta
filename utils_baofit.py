@@ -579,14 +579,11 @@ class BAOFit:
                     if bin_z not in self.bins_removed:
                         ax = axs[i]
                         ax.errorbar(
-                            self.theta_data[bin_z] * 180 / np.pi,
-                            100 * (self.theta_data[bin_z] * 180 / np.pi) ** 2 * self.wtheta_data[bin_z],
-                            yerr=100 * (self.theta_data[bin_z] * 180 / np.pi) ** 2 * np.sqrt(np.diag(self.cov))[sum(len(self.theta_data[bin_z2]) for bin_z2 in range(bin_z)):sum(len(self.theta_data[bin_z2]) for bin_z2 in range(bin_z + 1))],
-                            capsize=4, capthick=1.5,
-                            marker="D", markersize=6, markerfacecolor="lightblue", markeredgewidth=1.2,
-                            markeredgecolor="dodgerblue", ecolor="dodgerblue", linestyle="none",
-                            label=fr"\texttt{{{self.dataset}}}",
-                            zorder=-1000
+                            self.theta_data[bin_z] * 180 / np.pi, 100 * (self.theta_data[bin_z] * 180 / np.pi) ** 2 * self.wtheta_data[bin_z],
+                            yerr=100 * (self.theta_data[bin_z] * 180 / np.pi) ** 2 * np.sqrt(np.diag(self.cov))[sum(len(self.theta_data[bin_z2]) 
+                                                                                                                    for bin_z2 in range(bin_z)):sum(len(self.theta_data[bin_z2]) for bin_z2 in range(bin_z + 1))],
+                            capsize=4, capthick=1.5, marker="D", markersize=6, markerfacecolor="lightblue", markeredgewidth=1.2, markeredgecolor="dodgerblue", ecolor="dodgerblue", linestyle="none",
+                            label=fr"\texttt{{{self.dataset}}}", zorder=-1000
                         )
                         if self.alpha_type == "alpha_wigg_only":
                             ax.plot(
@@ -609,7 +606,8 @@ class BAOFit:
                             )
                         ax.plot(
                             theta_data_interp[bin_z] * 180 / np.pi, 
-                            100 * (theta_data_interp[bin_z] * 180 / np.pi) ** 2 * wtheta_fit_best[sum(len(theta_data_interp[bin_z2]) for bin_z2 in range(bin_z)):sum(len(theta_data_interp[bin_z2]) for bin_z2 in range(bin_z + 1))],
+                            100 * (theta_data_interp[bin_z] * 180 / np.pi) ** 2 * wtheta_fit_best[sum(len(theta_data_interp[bin_z2]) 
+                                                                                                      for bin_z2 in range(bin_z)):sum(len(theta_data_interp[bin_z2]) for bin_z2 in range(bin_z + 1))],
                             color="black",
                             label="best fit"
                         )
@@ -632,7 +630,74 @@ class BAOFit:
                 plt.savefig(os.path.join(self.path_baofit, "wtheta_data_bestfit.png"), bbox_inches="tight")
                 if self.close_fig:
                     plt.close(fig)
-                    
+                
+                if nbins_eff > 1:
+                    # Plot the bin-average w(theta) (can be useful for visualization, but it's not physically meaningful. Also, it's not very useful if it averages a wide redshift range since the BAO peak evolves)
+                    theta_sets = [set(self.theta_data[bin_z]) for bin_z in range(self.nbins) if bin_z not in self.bins_removed]
+                    common_theta = np.array(sorted(set.intersection(*theta_sets))) # common theta values between the bins used for the BAO fit
+    
+                    theta_data_interp = {}
+                    for bin_z in range(self.nbins):
+                        theta_data_interp[bin_z] = np.linspace(common_theta[0], common_theta[-1], 10**3)
+    
+                    # First, let's get the data
+                    aligned_wtheta = []
+                    aligned_cov = []
+                    for bin_z in range(self.nbins):
+                        if bin_z not in self.bins_removed:
+                            mask = np.isin(self.theta_data[bin_z], common_theta)
+                            wtheta_bin = self.wtheta_data[bin_z][mask]
+                            cov_bin = np.diag(self.cov)[sum(len(self.theta_data[bin_z2]) for bin_z2 in range(bin_z)): sum(len(self.theta_data[bin_z2]) for bin_z2 in range(bin_z + 1))][mask]
+                            aligned_wtheta.append(wtheta_bin)
+                            aligned_cov.append(cov_bin)
+                    aligned_wtheta = np.array(aligned_wtheta)
+                    aligned_cov = np.array(aligned_cov)
+                    wtheta_mean = np.mean(aligned_wtheta, axis=0)
+                    wtheta_err = np.sqrt(np.sum(aligned_cov, axis=0)) / nbins_eff
+    
+                    # Now, the template
+                    wtheta_template_mean = []
+                    for bin_z in range(self.nbins):
+                        if bin_z not in self.bins_removed:
+                            if self.alpha_type == "alpha_wigg_only":
+                                wtheta_template_mean.append(
+                                    self.wtheta_model.wtheta_wigg_th_interp[bin_z](theta_data_interp[bin_z])
+                                    if self.include_wiggles == ""
+                                    else self.wtheta_model.wtheta_nowigg_th_interp[bin_z](theta_data_interp[bin_z]) # actually the no-wiggle case will never be plotted because the script will never reach this point
+                                )
+                            elif self.alpha_type == "alpha_wigg_nowigg":
+                                wtheta_template_mean.append(self.wtheta_model.wtheta_th_interp[bin_z](theta_data_interp[bin_z]))
+                    wtheta_template_mean = np.mean(wtheta_template_mean, axis=0)
+    
+                    # Now, the model
+                    wtheta_fit_best = self.wtheta_model.get_wtheta_model()(theta_data_interp, *params_best)
+                    wtheta_fit_best_mean = []
+                    for bin_z in range(self.nbins):
+                        if bin_z not in self.bins_removed:
+                            wtheta_fit_best_mean.append(wtheta_fit_best[sum(len(theta_data_interp[bin_z2]) 
+                                                                            for bin_z2 in range(bin_z)):sum(len(theta_data_interp[bin_z2]) for bin_z2 in range(bin_z + 1))])
+                    wtheta_fit_best_mean = np.mean(wtheta_fit_best_mean, axis=0)
+    
+                    # Now, let's plot
+                    fig, ax = plt.subplots(figsize=(8, 5))
+                    ax.errorbar(
+                        common_theta * 180 / np.pi, 100 * (common_theta * 180 / np.pi) ** 2 * wtheta_mean,
+                        yerr=100 * (common_theta * 180 / np.pi) ** 2 * wtheta_err,
+                        capsize=4, capthick=1.5, marker="D", markersize=6, markerfacecolor="lightblue", markeredgewidth=1.2, markeredgecolor="dodgerblue", ecolor="dodgerblue", linestyle="none",
+                        label=fr"\texttt{{{self.dataset}}}",zorder=-1000
+                    )
+                    ax.plot(theta_data_interp[0] * 180 / np.pi, 100 * (theta_data_interp[0] * 180 / np.pi) ** 2 * wtheta_template_mean, color="red", linestyle="--", label="template")
+                    ax.plot(theta_data_interp[0] * 180 / np.pi, 100 * (theta_data_interp[0] * 180 / np.pi) ** 2 * wtheta_fit_best_mean, color="black", label="best fit")
+                    ax.set_ylabel(r"$10^2 \times \theta^2 w(\theta)$", fontsize=22)
+                    ax.set_xlabel(r"$\theta$ (deg)", fontsize=22)
+                    ax.tick_params(axis="x", labelsize=18)
+                    ax.tick_params(axis="y", labelsize=18)
+                    ax.legend(loc="lower left", fontsize=18)
+                    fig.tight_layout()
+                    plt.savefig(os.path.join(self.path_baofit, "wtheta_data_bestfit_averaged_bins.png"), bbox_inches="tight")
+                    if self.close_fig:
+                        plt.close(fig)
+
                 # Save the w(theta)
                 np.savetxt(
                     os.path.join(self.path_baofit, "wtheta_data_bestfit.txt"),
