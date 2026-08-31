@@ -484,15 +484,31 @@ class WThetaDataCovariance:
 
         len_datavector = sum(len(theta_cov_cut[bin_z]) for bin_z in range(self.nbins) if bin_z not in self.bins_removed)
         print(f"Length of data vector (calculated from the covariance): {len_datavector}")
-        
+
+        # Hartlap correction
         if self.cov_type == "mocks":
             if "DESIY1" in self.dataset:
-                hartlap = (1000 - len_datavector - 2) / (1000 - 1) # it's always 1000 since it's the number of EZ mocks
+                n_mocks_cov = 1000 # number of EZ mocks
             elif "DESY6" in self.dataset:
-                hartlap = (1952 - len_datavector - 2) / (1952 - 1)
-            cov_cut /= hartlap
-            print(f"Applying the Hartlap correction to the covariance matrix from the mocks (cov -> cov/{hartlap})")
-            
+                n_mocks_cov = 1952 # number of COLA mocks
+
+            if self.diag_only == "y": # purely diagonal covariance: no Hartlap correction
+                print("Using a purely diagonal covariance matrix: no Hartlap correction applied!")
+            elif self.remove_crosscov == "y": # we need to apply a per-bin Hartlap correction
+                for bin_z in range(self.nbins):
+                    if bin_z in self.bins_removed:
+                        continue
+                    n_theta_z = len(theta_cov_cut[bin_z])
+                    hartlap_z = (n_mocks_cov - n_theta_z - 2) / (n_mocks_cov - 1)
+                    start = sum(len(theta_cov_cut[bin_z2]) for bin_z2 in range(bin_z) if bin_z2 not in self.bins_removed)
+                    end = start + n_theta_z
+                    cov_cut[start:end, start:end] /= hartlap_z
+                    print(f"z-bin {bin_z}: N_theta = {n_theta_z}, Hartlap = {hartlap_z:.6f}")
+            else: # full Hartlap correction
+                hartlap = (n_mocks_cov - len_datavector - 2) / (n_mocks_cov - 1)
+                cov_cut /= hartlap
+                print(f"Applying the Hartlap correction to the covariance matrix from the mocks (cov -> cov/{hartlap})")
+
             if "Abacus" in self.dataset: # only used for the Abacus
                 if hasattr(self, 'n_mocks'): # if it exists then it means we have averaged the w(theta) over n_mocks and then we need to re-scale the covariance matrix
                     cov_cut /= self.n_mocks
