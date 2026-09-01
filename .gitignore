@@ -46,14 +46,8 @@ datasets/DESIY1_QSO_post_deltaz0.05
 
 **/scripts
 **/notebooks_
+**/sacc_files
 
 copy_templates_DESY6.sh
 copy_templates_DESY6_COLA.sh
 copy_templates_DESIY1.sh
-
-**/plots/
-
-**/pk_old/
-
-**/nb_BAOfit_DESIstuff.ipynb
-**/Untitled.ipynb

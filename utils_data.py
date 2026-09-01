@@ -52,6 +52,12 @@ class RedshiftDistributions:
             self.nz_type = "thinbin" # the n(z) will be top-hat functions
             if self.nz_flag == "mocks":
                 file_path = f"{self.code_path}/datasets/{self.dataset}/nz/mean_nzs.txt"
+        elif "LSST" in self.dataset:
+            self.nz_type = "widebin" # they have their own n(z) inside their corresponding folder
+            file_path = f"{self.code_path}/datasets/{self.dataset}/nz/nz.txt"
+            self.z_edges = {
+                0: [0.6, 0.7], 1: [0.7, 0.8]
+            }
         else:
             raise ValueError(f"Unknown dataset: {self.dataset}")
 
@@ -207,6 +213,8 @@ class GetThetaLimits:
             theta_max_val = 5
         elif "DESIY1" in self.dataset:
             theta_max_val = 8
+        if "LSST" in self.dataset:
+            theta_max_val = 5
         else:
             raise ValueError(f"Static theta limits not defined for dataset '{self.dataset}'")
 
@@ -356,14 +364,19 @@ class WThetaDataCovariance:
                         with zipfile.ZipFile(zip_file, "r") as zf:
                             with zf.open(file_in_zip) as filename_wtheta:
                                 theta, wtheta = np.loadtxt(filename_wtheta).T[:2] # these files include DD, DR, RR since they were not post-processed with fstar
+                                
                 elif "DESIY1" in self.dataset:
                     file_in_zip = f"twoangcorr_mock_0.npz"
-            
                     with zipfile.ZipFile(zip_file, "r") as zf:
                         with zf.open(file_in_zip) as filename_wtheta:
                             npz_data = np.load(filename_wtheta)
-            
                             wtheta = npz_data.get(f"z{bin_z}")
+
+                elif "LSST" in self.dataset:
+                    file_in_zip = f"wtheta_bin{bin_z}.txt"
+                    with zipfile.ZipFile(zip_file, "r") as zf:
+                        with zf.open(file_in_zip) as filename_wtheta:
+                            theta, wtheta = np.loadtxt(filename_wtheta).T
 
             indices_theta_individualbin = np.where(
                 (theta > self.theta_min[bin_z] * np.pi / 180) &
@@ -441,6 +454,11 @@ class WThetaDataCovariance:
                 cov = np.loadtxt(f"{path_cov}/EZcovariance_matrix.txt")
             else:
                 raise NotImplementedError("Such covariance does not exist.")
+
+        elif "LSST" in self.dataset:
+            for bin_z in range(self.nbins):
+                theta_cov[bin_z] = np.loadtxt(f"{path_cov}/theta.txt")[:, bin_z]
+            cov = np.loadtxt(f"{path_cov}/cov.txt")
 
         # Let's create a covariance matrix that's basically the original (all theta elements included), but removing the cross-covariances 
         # of all bins in self.bins_removed with every other bin.
