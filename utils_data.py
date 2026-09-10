@@ -54,10 +54,19 @@ class RedshiftDistributions:
                 file_path = f"{self.code_path}/datasets/{self.dataset}/nz/mean_nzs.txt"
         elif "LSST" in self.dataset:
             self.nz_type = "widebin" # they have their own n(z) inside their corresponding folder
-            file_path = f"{self.code_path}/datasets/{self.dataset}/nz/nz.txt"
-            self.z_edges = {
-                0: [0.6, 0.7], 1: [0.7, 0.8]
-            }
+            if self.nz_flag == "srd":
+                file_path = f"{self.code_path}/datasets/{self.dataset}/nz/nz.txt"
+                if "year_10" in self.dataset:
+                    self.z_edges = {
+                        0: [0.2, 0.3], 1: [0.3, 0.4], 2: [0.4, 0.5], 3: [0.5, 0.6], 4: [0.6, 0.7],
+                        5: [0.7, 0.8], 6: [0.8, 0.9], 7: [0.9, 1.0], 8: [1.0, 1.1], 9: [1.1, 1.2]
+                    }
+                else: # year_1
+                    self.z_edges = {
+                        0: [0.2, 0.4], 1: [0.4, 0.6], 2: [0.6, 0.8], 3: [0.8, 1.0], 4: [1.0, 1.2]
+                    }
+            else:
+                raise ValueError(f"Unknown nz_flag: {self.nz_flag} for dataset: {self.dataset}")
         else:
             raise ValueError(f"Unknown dataset: {self.dataset}")
 
@@ -134,6 +143,9 @@ class RedshiftDistributions:
             if verbose:
                 print(f"[bin_z: {bin_z}, zmin: {zmin:.3f}, zmax: {zmax:.3f}, "
                       f"integral of n(z): {integral:.5f}, target: {target_area}]")
+
+            if z_values[0] == 0:
+                z_values = z_values[1:]
         
             return z_values
         elif self.nz_type == "thinbin":
@@ -214,7 +226,7 @@ class GetThetaLimits:
         elif "DESIY1" in self.dataset:
             theta_max_val = 8
         if "LSST" in self.dataset:
-            theta_max_val = 5
+            theta_max_val = 12
         else:
             raise ValueError(f"Static theta limits not defined for dataset '{self.dataset}'")
 
@@ -456,9 +468,12 @@ class WThetaDataCovariance:
                 raise NotImplementedError("Such covariance does not exist.")
 
         elif "LSST" in self.dataset:
-            for bin_z in range(self.nbins):
-                theta_cov[bin_z] = np.loadtxt(f"{path_cov}/theta.txt")[:, bin_z]
-            cov = np.loadtxt(f"{path_cov}/cov.txt")
+            if self.cov_type == "tjpcov":
+                for bin_z in range(self.nbins):
+                    theta_cov[bin_z] = np.loadtxt(f"{path_cov}/theta.txt")[:, bin_z]
+                cov = np.loadtxt(f"{path_cov}/cov.txt")
+            else:
+                raise NotImplementedError("Such covariance does not exist.")
 
         # Let's create a covariance matrix that's basically the original (all theta elements included), but removing the cross-covariances 
         # of all bins in self.bins_removed with every other bin.
