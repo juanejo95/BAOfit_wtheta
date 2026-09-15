@@ -387,7 +387,7 @@ class BAOFitInitializer:
         """
         Generate the path to save the BAO fit results.
         """
-        if any(substr in self.dataset for substr in ["COLA", "EZ", "Abacus"]):
+        if any(substr in self.dataset for substr in ["COLA", "EZ", "Abacus", "mocks"]):
             path = f"{self.save_path}/results/{self.dataset}/{self.alpha_type}/fit_results{self.include_wiggles}/mock_{self.mock_id}/{self.hash_path}"
         else:
             if "DESY6" in self.dataset:

@@ -225,7 +225,7 @@ class GetThetaLimits:
             theta_max_val = 5
         elif "DESIY1" in self.dataset:
             theta_max_val = 8
-        if "LSST" in self.dataset:
+        elif "LSST" in self.dataset:
             theta_max_val = 12
         else:
             raise ValueError(f"Static theta limits not defined for dataset '{self.dataset}'")
@@ -302,7 +302,7 @@ class WThetaDataCovariance:
         zip_file = f"{self.code_path}/datasets/{self.dataset}/wtheta/wtheta.zip"
         for bin_z in range(self.nbins):
 
-            if any(substr in self.dataset for substr in ["COLA", "EZ", "Abacus"]):
+            if any(substr in self.dataset for substr in ["COLA", "EZ", "Abacus", "mocks"]):
                 if "COLA" in self.dataset:
                     if self.mock_id == "mean":
                         with zipfile.ZipFile(zip_file, "r") as zf:
@@ -362,6 +362,36 @@ class WThetaDataCovariance:
                                 npz_data = np.load(filename_wtheta)
                 
                                 wtheta = npz_data.get(f"z{bin_z}")
+                if "mocks" in self.dataset:
+                    if self.mock_id == "mean":
+                        with zipfile.ZipFile(zip_file, "r") as zf:
+                            # Find all mock files for the given redshift bin
+                            pattern = re.compile(f"wtheta_mock[0-9]+_bin{bin_z}.txt")
+                            mock_files = [name for name in zf.namelist() if pattern.match(name)]
+                            
+                            if bin_z == 0:
+                                self.n_mocks = len(mock_files)
+                                print(f"Averaging the w(theta) over {self.n_mocks} mocks!")
+                            
+                            all_wtheta = []
+                            theta = None
+    
+                            for mock_file in mock_files:
+                                with zf.open(mock_file) as file:
+                                    theta_mock, wtheta_mock = np.loadtxt(file).T
+                                    if theta is None:
+                                        theta = theta_mock
+                                    elif not np.array_equal(theta, theta_mock):
+                                        raise ValueError("Theta arrays are inconsistent across mock files.")
+                                    all_wtheta.append(wtheta_mock)
+    
+                            wtheta = np.mean(all_wtheta, axis=0)
+    
+                    else:
+                        file_in_zip = f"wtheta_mock{self.mock_id}_bin{bin_z}.txt"
+                        with zipfile.ZipFile(zip_file, "r") as zf:
+                            with zf.open(file_in_zip) as filename_wtheta:
+                                theta, wtheta = np.loadtxt(filename_wtheta).T
                     
             else:
                 if "DESY6" in self.dataset:
