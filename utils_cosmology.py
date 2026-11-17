@@ -61,6 +61,32 @@ class CosmologicalParameters:
         elif cosmology_template == "desifid":
             self.cosmo = DESI()
 
+        elif cosmology_template == "desifid_w0wa":
+            "Best fit values for a flat w0waCDM cosmology from CMB + DESI BAO DR2 + DESY5 (https://arxiv.org/pdf/2503.14738)."
+
+            H_0 = 66.73428704
+            h = H_0 / 100
+            
+            Omega_b = 0.02221485621 / h**2
+            Omega_m = 0.3191980194
+
+            logA = 3.038847745
+            n_s = 0.9644215278
+
+            w0_fld = -0.7536302620
+            wa_fld = -0.8574714585
+
+            self.cosmo = Cosmology(
+                h=h,
+                Omega_m=Omega_m,
+                Omega_b=Omega_b,
+                logA=logA,
+                n_s=n_s,
+                w0_fld=w0_fld,
+                wa_fld=wa_fld,
+                engine="class"
+            )
+
         else:
             raise ValueError("Cosmology not recognized. Please choose 'planck', 'mice', or 'desifid'.")
 
