@@ -44,6 +44,8 @@ datasets/DESIY1_ELG2_post_deltaz0.05
 datasets/DESIY1_QSO_pre_deltaz0.05
 datasets/DESIY1_QSO_post_deltaz0.05
 
+datasets/LSST_*/
+
 **/scripts
 **/notebooks_
 **/sacc_files

@@ -61,6 +61,10 @@ class RedshiftDistributions:
                         0: [0.2, 0.3], 1: [0.3, 0.4], 2: [0.4, 0.5], 3: [0.5, 0.6], 4: [0.6, 0.7],
                         5: [0.7, 0.8], 6: [0.8, 0.9], 7: [0.9, 1.0], 8: [1.0, 1.1], 9: [1.1, 1.2]
                     }
+                elif "DP2" in self.dataset:
+                    self.z_edges = {
+                        0: [0.2, 0.4], 1: [0.4, 0.6], 2: [0.6, 0.8], 3: [0.8, 1.0], 4: [1.0, 1.2]
+                    }
                 else: # year_1
                     self.z_edges = {
                         0: [0.2, 0.4], 1: [0.4, 0.6], 2: [0.6, 0.8], 3: [0.8, 1.0], 4: [1.0, 1.2]
@@ -176,15 +180,6 @@ class GetThetaLimits:
         self.redshift_distributions = RedshiftDistributions(self.dataset, self.nz_flag, verbose=False, code_path=self.code_path)
         self.nbins = self.redshift_distributions.nbins
 
-    # def _angular_bao_scale_deg(self, z, cosmo):
-    #     """
-    #     Get the angular BAO scale for a given redshift and some cosmological parameters.
-    #     """
-    #     rd_mpc = cosmo.rs_drag / cosmo.h
-    #     D_M = cosmo.comoving_angular_distance(z)
-    #     theta_rad = rd_mpc / ((1 + z) * D_M)
-    #     return np.degrees(theta_rad)
-
     def _angular_bao_scale_deg(self, z, cosmo):
         """
         Get the angular BAO scale for a given redshift and some cosmological parameters.
@@ -196,22 +191,18 @@ class GetThetaLimits:
 
     def _get_dynamical_limits(self):
         """
-        Compute per-bin theta limits centered around an approximate BAO angular scale. For each redshift bin, 
+        Compute per-bin theta limits centered around an approximate BAO angular scale. For each redshift bin,
         the effective redshift is used to estimate the BAO angle, apply an empirical shift, and define a theta
-        window of width 'theta_width' around this center. This provides a reduced theta range that should 
+        window of width 'theta_width' around this center. This provides a reduced theta range that should
         contain the BAO feature without evaluating the full theta grid.
         """
         from cosmoprimo.fiducial import DESI
         cosmo = DESI()
         theta_min, theta_max = {}, {}
-        
+
         for bin_z in range(self.nbins):
             z_low, z_high = self.redshift_distributions.z_edges[bin_z]
             zeff = 0.5 * (z_low + z_high)
-            # if zeff < 1.4:
-            #     theta_bao = self._angular_bao_scale_deg(zeff, cosmo) + (zeff - 0.4)
-            # else:
-            #     theta_bao = self._angular_bao_scale_deg(zeff, cosmo) + 1
             theta_bao = self._angular_bao_scale_deg(zeff, cosmo)
             theta_min[bin_z] = theta_bao - self.theta_width / 2
             theta_max[bin_z] = theta_bao + self.theta_width / 2
